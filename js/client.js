@@ -17,6 +17,13 @@ function dbg(step, extra) {
   try { window.parent.postMessage({ type: 'ADDON_DEBUG', step, extra: extra || null }, '*'); } catch (e) {}
 }
 dbg('client.js loaded', { hasAddon: typeof Addon !== 'undefined' });
+window.addEventListener('message', function (e) {
+  try {
+    if (e.data && e.data.type === 'ADDON_DEBUG') return;
+    var d = typeof e.data === 'object' ? JSON.stringify(e.data) : String(e.data);
+    dbg('incoming: ' + String(d).slice(0, 160));
+  } catch (err) {}
+});
 
 const PROJECT_TYPE = 'Проект';
 
