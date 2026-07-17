@@ -7,8 +7,9 @@
  *   card_body_section  — свой экран внутри открытой карточки
  *   card_buttons       — своя кнопка в карточке
  *
- * Всё это включается ТОЛЬКО на карточках типа «Проект». На задачах аддон
- * молчит — иначе он замусорит доски команд.
+ * Проект — «Ход проекта», отчёт, сводка. Цель/Направление — сводка по
+ * вложенным и быстрое заведение проекта. На задачах аддон молчит —
+ * иначе он замусорит доски команд.
  */
 
 // Временная отладка: шлём вехи в родительское окно, чтобы их было видно
@@ -18,33 +19,32 @@ function dbg(step, extra) {
   DBG.push(step + (extra ? ' ' + JSON.stringify(extra) : ''));
   try { window.parent.postMessage({ type: 'ADDON_DEBUG', step, extra: extra || null }, '*'); } catch (e) {}
 }
-// переотправляем буфер 30 секунд, чтобы поймать вехи чистой загрузки
 var _n = 0;
 var _t = setInterval(function () {
   if (++_n > 15) return clearInterval(_t);
   try { window.parent.postMessage({ type: 'ADDON_DEBUG_BULK', log: DBG.slice() }, '*'); } catch (e) {}
 }, 2000);
 dbg('client.js loaded', { hasAddon: typeof Addon !== 'undefined' });
-window.addEventListener('message', function (e) {
-  try {
-    if (e.data && e.data.type === 'ADDON_DEBUG') return;
-    var d = typeof e.data === 'object' ? JSON.stringify(e.data) : String(e.data);
-    dbg('incoming: ' + String(d).slice(0, 160));
-  } catch (err) {}
-});
 
-const PROJECT_TYPE = 'Проект';
-// id типа «Проект» в этой инсталляции Kaiten (SDK отдаёт карточку без объекта type).
-// При переносе аддона в другую компанию поменяйте на её id (GET /card-types).
-const PROJECT_TYPE_IDS = [696186];
+// Дефолты для ЭТОЙ инсталляции Kaiten. Каждое значение можно переопределить
+// в настройках аддона на пространстве (страница settings.html) — тогда
+// хардкод не мешает переносу в другую компанию.
+const DEFAULTS = {
+  project_type_ids: [696186],   // тип «Проект»
+  goal_type_ids: [696185],      // тип «Цель»
+  direction_type_ids: [696272], // тип «Направление»
+  new_project_board_id: null,   // доска для новых проектов; null = доска карточки
+  silent_days: 14,              // порог «молчим» для бейджа
+};
+
 // База страниц аддона: signUrl/openPopup резолвят пути не от /views/, поэтому абсолютно.
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = '?v=3';
+const PAGE_V = 'v=4';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
-const F = { status: 'Статус', metric: 'Метрика', plan: 'План', fact: 'Факт' };
+const F = { status: 'Статус' };
 
 // Цвета для плашек. Тут hex, а не индексы палитры Kaiten — это наша отрисовка.
 const STATUS_COLOR = {
@@ -53,12 +53,32 @@ const STATUS_COLOR = {
   'Критичные проблемы': '#E24B4A',
 };
 
-async function isProject(ctx, card) {
-  if (!card) return false;
-  const t = card.type;
-  if (t && (t.name === PROJECT_TYPE || t.letter === 'П')) return true;
-  const id = card.type_id || card.card_type_id || (t && t.id);
-  return !!id && PROJECT_TYPE_IDS.indexOf(id) !== -1;
+// Настройки пространства поверх дефолтов. getSettings отдаёт МАССИВ
+// (по пространствам, [0] — текущее); может быть пуст — тогда живём на дефолтах.
+async function getCfg(ctx) {
+  let s = null;
+  try {
+    const all = await ctx.getSettings();
+    s = Array.isArray(all) ? all[0] : all;
+  } catch (e) { dbg('getSettings failed'); }
+  const cfg = Object.assign({}, DEFAULTS);
+  if (s && typeof s === 'object') {
+    for (const k of Object.keys(DEFAULTS)) {
+      if (s[k] != null && s[k] !== '') cfg[k] = s[k];
+    }
+  }
+  return cfg;
+}
+
+function typeId(card) {
+  return card ? (card.type_id || card.card_type_id || (card.type && card.type.id)) : null;
+}
+const isProject = (cfg, card) => cfg.project_type_ids.indexOf(typeId(card)) !== -1;
+const isGoal = (cfg, card) => cfg.goal_type_ids.indexOf(typeId(card)) !== -1;
+const isDirection = (cfg, card) => cfg.direction_type_ids.indexOf(typeId(card)) !== -1;
+
+function pageUrl(name, params) {
+  return BASE + name + '?' + PAGE_V + (params ? '&' + params : '');
 }
 
 function progress(card) {
@@ -80,14 +100,22 @@ async function propValue(ctx, card, name) {
   return raw;
 }
 
+function silentDays(card) {
+  const iso = card.comment_last_added_at || card.created;
+  if (!iso) return null;
+  return Math.floor((Date.now() - new Date(iso).getTime()) / 86400000);
+}
+
 dbg('before Addon.initialize');
 var initResult = Addon.initialize({
-  /* 1. БЕЙДЖИ НА ДОСКЕ — светофор и процент, не открывая карточку. */
+  /* 1. БЕЙДЖИ НА ДОСКЕ — светофор, процент и «молчим», не открывая карточку.
+     Никаких API-вызовов: только то, что уже есть в объекте карточки. */
   card_facade_badges: async (ctx) => {
     dbg('card_facade_badges called');
     try {
     const card = await ctx.getCard();
-    if (!(await isProject(ctx, card))) return [];
+    const cfg = await getCfg(ctx);
+    if (!isProject(cfg, card)) return [];
 
     const { done, total, pct } = progress(card);
     const status = await propValue(ctx, card, F.status);
@@ -95,60 +123,92 @@ var initResult = Addon.initialize({
 
     if (status) badges.push({ text: status, color: STATUS_COLOR[status] || '#888780' });
     if (total) badges.push({ text: `${pct}% · ${done}/${total}` });
+
+    // тухнущий проект видно с доски: комментариев не было дольше порога
+    const silent = silentDays(card);
+    if (silent != null && silent >= cfg.silent_days && card.state !== 3) {
+      badges.push({ text: `🔇 молчим ${silent} дн`, color: '#E24B4A' });
+    }
     dbg('badges result ' + badges.length);
     return badges;
     } catch (e) { dbg('badges ERROR ' + (e && e.message)); return []; }
   },
 
-  /* 2. СТРАНИЦА ПРОЕКТА внутри карточки.
+  /* 2. СЕКЦИИ внутри карточки.
+     Проект — «Ход проекта». Цель/Направление — сводка по вложенным.
      signUrl обязателен: он подписывает адрес, иначе страница не получит контекст. */
   card_body_section: async (ctx) => {
     dbg('card_body_section called');
     try {
       const card = await ctx.getCard();
-      if (!(await isProject(ctx, card))) { dbg('body: not a project'); return []; }
-      const url = ctx.signUrl(BASE + 'project.html' + PAGE_V);
-      dbg('body signUrl ok: ' + String(url).slice(0, 60));
-      return [{
-        title: 'Ход проекта',
-        content: { type: 'iframe', url: url, height: 460 },
-      }];
+      const cfg = await getCfg(ctx);
+      if (isProject(cfg, card)) {
+        return [{
+          title: 'Ход проекта',
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html')), height: 460 },
+        }];
+      }
+      if (isGoal(cfg, card) || isDirection(cfg, card)) {
+        return [{
+          title: isDirection(cfg, card) ? 'Сводка направления' : 'Проекты этой цели',
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('goal.html')), height: 420 },
+        }];
+      }
+      dbg('body: not our type');
+      return [];
     } catch (e) { dbg('body ERROR ' + (e && e.message)); return []; }
   },
 
-  /* 3. КНОПКИ — отчёт и быстрое заведение нового проекта. */
+  /* 3. КНОПКИ. */
   card_buttons: async (ctx) => {
     dbg('card_buttons called');
     try {
     const card = await ctx.getCard();
+    const cfg = await getCfg(ctx);
 
     let perms = null;
     try { perms = ctx.getPermissions(); } catch (pe) { dbg('perms error ' + (pe && pe.message)); }
     if (perms && perms.card && perms.card.update === false) return [];
 
     const buttons = [];
+    const proj = isProject(cfg, card);
+    const goal = isGoal(cfg, card);
+    const dir = isDirection(cfg, card);
 
-    if (await isProject(ctx, card)) {
+    if (proj) {
       buttons.push({
         text: '📝 Отчёт за 2 недели',
-        callback: (btnCtx) => btnCtx.openPopup({
-          title: 'Отчёт по проекту',
-          url: BASE + 'report.html' + PAGE_V,
-          width: 460,
-          height: 560,
+        callback: (c) => c.openPopup({
+          title: 'Отчёт по проекту', url: pageUrl('report.html'), width: 460, height: 560,
         }),
       });
     }
 
-    // «Создать проект» видна на проектах и на карточке-шаблоне «⚡ ШАБЛОН…»
-    if ((await isProject(ctx, card)) || /ШАБЛОН/.test(card.title || '')) {
+    if (goal) {
+      // цель-родитель предзаполнена — заведение проекта прямо с цели
+      buttons.push({
+        text: '➕ Проект к этой цели',
+        callback: (c) => c.openPopup({
+          title: 'Новый проект', url: pageUrl('new-project.html', 'goal=' + card.id),
+          width: 460, height: 560,
+        }),
+      });
+    }
+
+    if (proj || /ШАБЛОН/.test(card.title || '')) {
       buttons.push({
         text: '🆕 Создать проект',
-        callback: (btnCtx) => btnCtx.openPopup({
-          title: 'Новый проект',
-          url: BASE + 'new-project.html' + PAGE_V,
-          width: 460,
-          height: 520,
+        callback: (c) => c.openPopup({
+          title: 'Новый проект', url: pageUrl('new-project.html'), width: 460, height: 560,
+        }),
+      });
+    }
+
+    if (proj || goal || dir) {
+      buttons.push({
+        text: '📋 Сводка для руководства',
+        callback: (c) => c.openPopup({
+          title: 'Сводка', url: pageUrl('summary.html'), width: 560, height: 600,
         }),
       });
     }
@@ -156,6 +216,19 @@ var initResult = Addon.initialize({
     dbg('buttons result ' + buttons.length);
     return buttons;
     } catch (e) { dbg('buttons ERROR ' + (e && e.message)); return []; }
+  },
+
+  /* 4. НАСТРОЙКИ — попап при подключении аддона к пространству
+     (контракт из примера вендора kaiten-test-addon). */
+  settings: (ctx) => {
+    dbg('settings called');
+    return ctx.openPopup({
+      type: 'iframe',
+      title: 'Настройки «Страницы проекта»',
+      url: pageUrl('settings.html'),
+      width: 480,
+      height: 520,
+    });
   },
 });
 

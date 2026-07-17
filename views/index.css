@@ -98,6 +98,30 @@ input:focus, textarea:focus { outline: none; border-color: var(--accent); }
 .st.on.warn { border-color: var(--warn); background: rgba(224,152,42,.11); }
 .st.on.bad  { border-color: var(--bad);  background: rgba(224,72,77,.09); }
 
+select {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--fg); font: inherit;
+}
+select:focus { outline: none; border-color: var(--accent); }
+
+/* ── сводка цели/направления ── */
+.chip { font-size: 13px; color: var(--fg-2); }
+.stale-num { margin-left: auto; font-size: 12px; color: var(--muted);
+             font-variant-numeric: tabular-nums; }
+.g-row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+         border-top: 1px solid var(--line); font-size: 13px; }
+.g-row:first-of-type { border-top: 0; }
+.g-title { flex: 1; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis;
+           white-space: nowrap; }
+.g-silent { color: var(--bad); font-size: 12px; flex: none; }
+.g-bar { width: 90px; flex: none; }
+.g-bar .bar { display: block; }
+.g-num { width: 42px; text-align: right; color: var(--fg-2); flex: none;
+         font-variant-numeric: tabular-nums; }
+.g-money { width: 130px; text-align: right; color: var(--muted); flex: none;
+           font-variant-numeric: tabular-nums; font-size: 12px; }
+.g-foot { margin-top: 10px; font-size: 12px; }
+
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
            color: #fff; font: inherit; font-weight: 500; cursor: pointer; }

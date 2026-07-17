@@ -45,6 +45,9 @@ async function init() {
   await ensureAuth();
   const card = await iframe.getCard();
 
+  // кнопка «➕ Проект к этой цели» передаёт цель в query (?goal=id)
+  const presetGoal = new URLSearchParams(location.search).get('goal');
+
   // цели для селекта: живые карточки типа «Цель» (их немного)
   const goalSel = document.getElementById('goal');
   try {
@@ -61,6 +64,16 @@ async function init() {
       });
     }
   } catch (e) { /* без целей форма всё равно работает */ }
+  if (presetGoal) {
+    goalSel.value = presetGoal;
+    if (goalSel.value !== presetGoal) {  // цели нет в списке — добавим болванку
+      const o = document.createElement('option');
+      o.value = presetGoal;
+      o.textContent = `Карточка #${presetGoal}`;
+      goalSel.appendChild(o);
+      goalSel.value = presetGoal;
+    }
+  }
 
   document.getElementById('f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -70,13 +83,21 @@ async function init() {
     try {
       const types = await api.get('/api/v1/card-types');
       const projType = (types || []).find((t) => t.name === PROJECT_TYPE);
-      const cols = await api.get(`/api/v1/boards/${card.board_id}/columns`);
+      // доска: из настроек аддона, если задана; иначе — откуда открыли форму.
+      // С карточки Цели без настройки проект уехал бы на доску целей.
+      let boardId = card.board_id;
+      try {
+        const all = await iframe.getSettings();
+        const s = (Array.isArray(all) ? all[0] : all) || {};
+        if (s.new_project_board_id) boardId = s.new_project_board_id;
+      } catch (e) { /* настроек нет — ок */ }
+      const cols = await api.get(`/api/v1/boards/${boardId}/columns`);
       const queue = (cols || []).find((c) => c.type === 1) || cols[0];
       const props = await api.get('/api/v1/company/custom-properties?limit=200');
       const planDef = (props || []).find((p) => p.name === F.plan);
 
       const body = {
-        board_id: card.board_id,
+        board_id: boardId,
         column_id: queue.id,
         title: document.getElementById('title').value.trim(),
         type_id: projType ? projType.id : undefined,

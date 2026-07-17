@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+</head>
+<body>
+  <div id="settings">
+    <p class="muted">Аддон включается только на нужных типах карточек.
+    id типов — в админке: Компания → Типы карточек (или GET /card-types).
+    Пустое поле = значение по умолчанию.</p>
+
+    <div class="field">
+      <label for="project_type_ids">id типа «Проект» (через запятую)</label>
+      <input id="project_type_ids" placeholder="696186">
+    </div>
+    <div class="field">
+      <label for="goal_type_ids">id типа «Цель»</label>
+      <input id="goal_type_ids" placeholder="696185">
+    </div>
+    <div class="field">
+      <label for="direction_type_ids">id типа «Направление»</label>
+      <input id="direction_type_ids" placeholder="696272">
+    </div>
+    <div class="field">
+      <label for="new_project_board_id">id доски для новых проектов
+        <span class="muted">— куда форма кладёт карточки; пусто = доска, откуда открыли форму</span></label>
+      <input id="new_project_board_id" type="number" placeholder="1833089">
+    </div>
+    <div class="field">
+      <label for="silent_days">Порог «молчим», дней</label>
+      <input id="silent_days" type="number" min="1" placeholder="14">
+    </div>
+
+    <div class="actions">
+      <button id="save" class="primary" type="button">Сохранить</button>
+      <span id="msg" class="muted"></span>
+    </div>
+  </div>
+  <script src="../js/settings.js?v=1"></script>
+</body>
+</html>
