@@ -18,9 +18,27 @@ const PROJECT_TYPE = 'Проект';
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
+/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов. */
 async function ensureAuth() {
-  try { await api.getAccessToken(); }
-  catch { await api.authorize(); }   // первый раз Kaiten спросит разрешение
+  try { await api.getAccessToken(); return; } catch (e) { /* токена ещё нет */ }
+  await new Promise((resolve) => {
+    const gate = document.createElement('div');
+    gate.innerHTML = `
+      <p class="hint">Нужно разовое разрешение на доступ к Kaiten от вашего имени —
+      без него форма не сможет создать карточку.</p>
+      <p><button id="auth-btn" type="button">🔓 Разрешить</button></p>
+      <p class="hint" id="auth-msg"></p>`;
+    document.body.prepend(gate);
+    iframe.fitSize && iframe.fitSize();
+    gate.querySelector('#auth-btn').addEventListener('click', async () => {
+      gate.querySelector('#auth-msg').textContent = 'Жду подтверждения в окне Kaiten…';
+      try { await api.authorize(); gate.remove(); resolve(); }
+      catch (e) {
+        gate.querySelector('#auth-msg').textContent =
+          'Доступ не выдан: ' + ((e && e.message) || e);
+      }
+    });
+  });
 }
 
 async function init() {
