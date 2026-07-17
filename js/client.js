@@ -45,9 +45,27 @@ const STATUS_COLOR = {
   'Критичные проблемы': '#E24B4A',
 };
 
-function isProject(card) {
-  const t = card && card.type;
-  return !!t && (t.name === PROJECT_TYPE || t.letter === 'П');
+var projectTypeId = null; // ленивый резолв по имени — id в каждой компании свои
+async function resolveProjectTypeId(ctx) {
+  if (projectTypeId !== null) return projectTypeId;
+  try {
+    const api = await ctx.getApiClient();
+    const types = await api.get('/api/v1/card-types');
+    const t = (types || []).find(function (x) { return x.name === PROJECT_TYPE || x.letter === 'П'; });
+    projectTypeId = t ? t.id : -1;
+  } catch (e) { dbg('resolve type ERROR ' + (e && e.message)); projectTypeId = -1; }
+  dbg('projectTypeId=' + projectTypeId);
+  return projectTypeId;
+}
+
+async function isProject(ctx, card) {
+  if (!card) return false;
+  const t = card.type;
+  if (t && (t.name === PROJECT_TYPE || t.letter === 'П')) return true;
+  const id = card.type_id || card.card_type_id || (t && t.id);
+  if (!id) return false;
+  const projId = await resolveProjectTypeId(ctx);
+  return id === projId;
 }
 
 function progress(card) {
@@ -76,7 +94,7 @@ var initResult = Addon.initialize({
     dbg('card_facade_badges called');
     try {
     const card = await ctx.getCard();
-    if (!isProject(card)) return [];
+    if (!(await isProject(ctx, card))) return [];
 
     const { done, total, pct } = progress(card);
     const status = await propValue(ctx, card, F.status);
@@ -95,7 +113,7 @@ var initResult = Addon.initialize({
     dbg('card_body_section called');
     try {
       const card = await ctx.getCard();
-      if (!isProject(card)) { dbg('body: not a project'); return []; }
+      if (!(await isProject(ctx, card))) { dbg('body: not a project'); return []; }
       const url = ctx.signUrl('./project.html');
       dbg('body signUrl ok: ' + String(url).slice(0, 60));
       return [{
@@ -117,7 +135,7 @@ var initResult = Addon.initialize({
 
     const buttons = [];
 
-    if (isProject(card)) {
+    if (await isProject(ctx, card)) {
       buttons.push({
         text: '📝 Отчёт за 2 недели',
         callback: (btnCtx) => btnCtx.openPopup({
@@ -130,7 +148,7 @@ var initResult = Addon.initialize({
     }
 
     // «Создать проект» видна на проектах и на карточке-шаблоне «⚡ ШАБЛОН…»
-    if (isProject(card) || /ШАБЛОН/.test(card.title || '')) {
+    if ((await isProject(ctx, card)) || /ШАБЛОН/.test(card.title || '')) {
       buttons.push({
         text: '🆕 Создать проект',
         callback: (btnCtx) => btnCtx.openPopup({
