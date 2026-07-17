@@ -13,9 +13,17 @@
 
 // Временная отладка: шлём вехи в родительское окно, чтобы их было видно
 // из консоли хоста (удалить после стабилизации).
+var DBG = [];
 function dbg(step, extra) {
+  DBG.push(step + (extra ? ' ' + JSON.stringify(extra) : ''));
   try { window.parent.postMessage({ type: 'ADDON_DEBUG', step, extra: extra || null }, '*'); } catch (e) {}
 }
+// переотправляем буфер 30 секунд, чтобы поймать вехи чистой загрузки
+var _n = 0;
+var _t = setInterval(function () {
+  if (++_n > 15) return clearInterval(_t);
+  try { window.parent.postMessage({ type: 'ADDON_DEBUG_BULK', log: DBG.slice() }, '*'); } catch (e) {}
+}, 2000);
 dbg('client.js loaded', { hasAddon: typeof Addon !== 'undefined' });
 window.addEventListener('message', function (e) {
   try {
@@ -62,7 +70,7 @@ async function propValue(ctx, card, name) {
 }
 
 dbg('before Addon.initialize');
-Addon.initialize({
+var initResult = Addon.initialize({
   /* 1. БЕЙДЖИ НА ДОСКЕ — светофор и процент, не открывая карточку. */
   card_facade_badges: async (ctx) => {
     dbg('card_facade_badges called');
@@ -129,3 +137,12 @@ Addon.initialize({
     return buttons;
   },
 });
+
+if (initResult && typeof initResult.then === 'function') {
+  initResult.then(
+    function (r) { dbg('initialize RESOLVED', r || true); },
+    function (e) { dbg('initialize REJECTED', (e && e.message) || String(e)); }
+  );
+} else {
+  dbg('initialize returned non-promise', typeof initResult);
+}
