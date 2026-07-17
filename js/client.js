@@ -126,6 +126,7 @@ var initResult = Addon.initialize({
   /* 3. КНОПКИ — отчёт и быстрое заведение нового проекта. */
   card_buttons: async (ctx) => {
     dbg('card_buttons called');
+    try { const c0 = await ctx.getCard(); dbg('card dump ' + JSON.stringify({type: c0.type, type_id: c0.type_id, keys: Object.keys(c0).slice(0, 45)})); } catch (e) { dbg('dump err'); }
     try {
     const card = await ctx.getCard();
 
