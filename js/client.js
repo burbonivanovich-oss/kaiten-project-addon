@@ -34,6 +34,9 @@ window.addEventListener('message', function (e) {
 });
 
 const PROJECT_TYPE = 'Проект';
+// id типа «Проект» в этой инсталляции Kaiten (SDK отдаёт карточку без объекта type).
+// При переносе аддона в другую компанию поменяйте на её id (GET /card-types).
+const PROJECT_TYPE_IDS = [696186];
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус', metric: 'Метрика', plan: 'План', fact: 'Факт' };
@@ -45,27 +48,12 @@ const STATUS_COLOR = {
   'Критичные проблемы': '#E24B4A',
 };
 
-var projectTypeId = null; // ленивый резолв по имени — id в каждой компании свои
-async function resolveProjectTypeId(ctx) {
-  if (projectTypeId !== null) return projectTypeId;
-  try {
-    const api = await ctx.getApiClient();
-    const types = await api.get('/api/v1/card-types');
-    const t = (types || []).find(function (x) { return x.name === PROJECT_TYPE || x.letter === 'П'; });
-    projectTypeId = t ? t.id : -1;
-  } catch (e) { dbg('resolve type ERROR ' + (e && e.message)); projectTypeId = -1; }
-  dbg('projectTypeId=' + projectTypeId);
-  return projectTypeId;
-}
-
 async function isProject(ctx, card) {
   if (!card) return false;
   const t = card.type;
   if (t && (t.name === PROJECT_TYPE || t.letter === 'П')) return true;
   const id = card.type_id || card.card_type_id || (t && t.id);
-  if (!id) return false;
-  const projId = await resolveProjectTypeId(ctx);
-  return id === projId;
+  return !!id && PROJECT_TYPE_IDS.indexOf(id) !== -1;
 }
 
 function progress(card) {
@@ -126,7 +114,6 @@ var initResult = Addon.initialize({
   /* 3. КНОПКИ — отчёт и быстрое заведение нового проекта. */
   card_buttons: async (ctx) => {
     dbg('card_buttons called');
-    try { const c0 = await ctx.getCard(); dbg('card dump ' + JSON.stringify({type: c0.type, type_id: c0.type_id, keys: Object.keys(c0).slice(0, 45)})); } catch (e) { dbg('dump err'); }
     try {
     const card = await ctx.getCard();
 
