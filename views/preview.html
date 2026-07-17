@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><title>Превью страницы проекта</title>
+  <link rel="stylesheet" href="index.css">
+  <style>
+    body{padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    .frame{max-width:620px;border:1px solid var(--line);border-radius:12px;padding:18px}
+    h3{font-weight:500;margin:0 0 4px}.note{color:var(--muted);font-size:13px;margin-bottom:16px}
+  </style>
+</head>
+<body>
+  <h3>Ход проекта</h3>
+  <div class="note">Так блок выглядит внутри карточки проекта. Данные — снимок демо.</div>
+  <div class="frame"><div id="root"></div></div>
+  <script>
+    // Заглушка SDK: подменяем ровно то, что дёргает project.js.
+    const CARD={id:1,title:'SEO-трафик',properties:{id_1:[11],id_2:[21],id_3:40,id_4:12}};
+    const DEFS=[
+      {id:1,name:'Статус',type:'select',values:[{id:11,value:'В плане'},{id:12,value:'Отстаёт'}]},
+      {id:2,name:'Метрика',type:'directory',values:[{id:21,display_value:'Органический трафик на карточки'}]},
+      {id:3,name:'План',type:'number'},{id:4,name:'Факт',type:'number'}];
+    const CHILDREN=[
+      {id:101,title:'Собрать семантику по каталогу',condition:2,board:{title:'SEO'},due_date:'2026-07-24T21:00:00Z'},
+      {id:102,title:'Мета-теги на 500 карточек',condition:1,board:{title:'SEO'},due_date:'2026-08-07T21:00:00Z'},
+      {id:103,title:'Шаблон карточки товара под SEO',condition:2,board:{title:'Разработка'},due_date:'2026-08-14T21:00:00Z'},
+      {id:104,title:'Описания для 100 товаров',condition:1,board:{title:'Копирайт'},due_date:'2026-08-21T21:00:00Z'}];
+    const COMMENTS=[
+      {text:'🔔 Статус изменён на «Отстаёт»',created:'2026-06-22T10:00:00Z'},
+      {text:'🔔 Статус изменён на «В плане»',created:'2026-07-06T10:00:00Z'},
+      {text:'Отчёт за 2 недели — В плане. Что сделали: собрали семантику',created:'2026-07-06T10:05:00Z'}];
+    window.Addon={iframe:()=>({
+      getCard:async()=>CARD, fitSize:()=>{},
+      getApiClient:()=>({
+        getAccessToken:async()=>({access_token:'x'}), authorize:async()=>{},
+        get:async(u)=> u.includes('custom-properties')?DEFS : u.includes('/children')?CHILDREN
+                     : u.includes('/comments')?COMMENTS : []
+      })})};
+  </script>
+  <script src="../js/project.js"></script>
+</body>
+</html>

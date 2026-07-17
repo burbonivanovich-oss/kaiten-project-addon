@@ -1,0 +1,105 @@
+/* Kaiten грузит аддон в iframe внутрь своей карточки. Задача стилей одна:
+   вставка не должна выглядеть чужеродной.
+
+   ВАЖНО про палитру: у Kaiten интерфейс ХОЛОДНЫЙ серо-белый. Тёплые серые
+   (беж, олива) на белом фоне выглядят грязными и выцветшими — проверено.
+   Поэтому здесь только холодные нейтрали.
+
+   Фон всегда прозрачный — цвет даёт Kaiten. Обе темы обязательны:
+   пользователь может сидеть в любой. */
+
+:root {
+  --fg:     #1c2024;   /* основной текст — тёмный, но не чёрный */
+  --fg-2:   #4a5057;   /* вторичный: названия задач, история */
+  --muted:  #8b929b;   /* подписи, даты */
+  --line:   #e6e9ec;   /* разделители — заметно светлее текста */
+  --track:  #eef1f4;   /* подложка полосок */
+  --ok:     #12a15c;
+  --warn:   #e0982a;
+  --bad:    #e0484d;
+  --accent: #6c5cd4;   /* прогресс — сиреневый Kaiten */
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fg:     #eceef0;
+    --fg-2:   #c3c8ce;
+    --muted:  #8d949c;
+    --line:   #343a40;
+    --track:  #2c3238;
+    --ok:     #35c07e;
+    --warn:   #f0ad4a;
+    --bad:    #f0666b;
+    --accent: #8b7ce8;
+  }
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: transparent;
+  color: var(--fg);
+  font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+.muted { color: var(--muted); }
+
+/* ── страница проекта ── */
+.head { display: flex; align-items: center; gap: 8px; margin-bottom: 16px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: none; }
+.dot.ok { background: var(--ok); } .dot.warn { background: var(--warn); } .dot.bad { background: var(--bad); }
+.status { font-weight: 600; letter-spacing: -.01em; }
+.stale { margin-left: auto; color: var(--bad); font-size: 12px; font-weight: 500; }
+
+.row { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+.label { width: 148px; color: var(--muted); font-size: 13px; flex: none;
+         overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.grow { flex: 1; }
+.num { width: 88px; text-align: right; font-size: 13px; color: var(--fg-2);
+       font-variant-numeric: tabular-nums; flex: none; }
+
+.bar { height: 5px; border-radius: 3px; background: var(--track); overflow: hidden; }
+.bar-fill { height: 100%; border-radius: 3px; background: var(--accent); }
+.bar-fill.ok { background: var(--ok); } .bar-fill.warn { background: var(--warn); } .bar-fill.bad { background: var(--bad); }
+
+.section { margin: 20px 0 8px; font-weight: 600; font-size: 13px;
+           letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.board { margin-bottom: 12px; }
+.board-name { font-size: 13px; font-weight: 500; margin-bottom: 3px; }
+.task { display: flex; gap: 8px; align-items: baseline; padding: 3px 0; font-size: 13px;
+        color: var(--fg-2); }
+.task.done .t-title { color: var(--muted); }   /* без зачёркивания — галочки хватает */
+.tick { width: 12px; color: var(--line); flex: none; }
+.task.done .tick { color: var(--ok); }
+.t-title { flex: 1; }
+.due { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+
+.hist { display: flex; gap: 12px; font-size: 13px; padding: 5px 0; color: var(--fg-2); }
+.hist + .hist { border-top: 1px solid var(--line); }
+.hist-date { color: var(--muted); width: 78px; flex: none; font-variant-numeric: tabular-nums; }
+.hist-text { flex: 1; }
+
+/* ── форма отчёта ── */
+#report { padding: 2px; }
+.field { margin-bottom: 14px; }
+.field label { display: block; margin-bottom: 5px; font-size: 13px; color: var(--fg-2); }
+input, textarea {
+  width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px;
+  background: transparent; color: var(--fg); font: inherit; resize: vertical;
+}
+input::placeholder, textarea::placeholder { color: var(--muted); }
+input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+
+.statuses { display: flex; gap: 6px; }
+.st { flex: 1; padding: 8px 4px; border: 1px solid var(--line); border-radius: 6px;
+      background: transparent; color: var(--fg-2); font: inherit; cursor: pointer; }
+.st:hover { border-color: var(--muted); }
+.st.on { color: var(--fg); font-weight: 500; }
+.st.on.ok   { border-color: var(--ok);   background: rgba(18,161,92,.09); }
+.st.on.warn { border-color: var(--warn); background: rgba(224,152,42,.11); }
+.st.on.bad  { border-color: var(--bad);  background: rgba(224,72,77,.09); }
+
+.actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
+.primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
+           color: #fff; font: inherit; font-weight: 500; cursor: pointer; }
+.primary:hover { filter: brightness(1.08); }
+.primary:disabled { opacity: .5; cursor: default; filter: none; }

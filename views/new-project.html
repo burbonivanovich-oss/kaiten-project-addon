@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Новый проект</title>
+  <link rel="stylesheet" href="./index.css" />
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+</head>
+<body>
+  <form id="f" class="form">
+    <label>Название проекта *
+      <input id="title" required placeholder="Например: Партнёрство с …" />
+    </label>
+    <label>План, ₽ (ожидаемый эффект)
+      <input id="plan" type="number" min="0" placeholder="Пусто = эффект ещё не оценён" />
+    </label>
+    <label>Срок (когда должен доехать)
+      <input id="due" type="date" />
+    </label>
+    <label>Цель из «1 · Цели»
+      <select id="goal"><option value="">— выбрать позже —</option></select>
+    </label>
+    <p class="hint">Статус «В плане», дата первого отчёта и паспорт-инструкция появятся автоматически.</p>
+    <div class="row">
+      <button type="submit" id="go">Создать проект</button>
+    </div>
+    <div id="msg" class="hint"></div>
+  </form>
+  <script src="../js/new-project.js"></script>
+</body>
+</html>

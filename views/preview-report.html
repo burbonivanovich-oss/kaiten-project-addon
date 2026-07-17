@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8"><title>Превью формы отчёта</title>
+  <link rel="stylesheet" href="index.css">
+  <style>
+    body{padding:24px;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif}
+    .frame{max-width:440px;border:1px solid var(--line);border-radius:12px;padding:18px}
+    h3{font-weight:500;margin:0 0 4px}.note{color:var(--muted);font-size:13px;margin-bottom:16px}
+  </style>
+</head>
+<body>
+  <h3>Отчёт по проекту</h3>
+  <div class="note">Попап по кнопке «📝 Отчёт за 2 недели» в карточке проекта.</div>
+  <div class="frame">
+    <div id="report">
+      <div class="field">
+        <label>Как идём?</label>
+        <div class="statuses" id="statuses">
+          <button type="button" class="st ok on" data-v="В плане">🟢 В плане</button>
+          <button type="button" class="st warn"  data-v="Отстаёт">🟡 Отстаём</button>
+          <button type="button" class="st bad"   data-v="Критичные проблемы">🔴 Горит</button>
+        </div>
+      </div>
+      <div class="field">
+        <label for="fact">Факт по метрике <span class="muted">· Органический трафик на карточки</span></label>
+        <input id="fact" type="number" value="12">
+      </div>
+      <div class="field"><label>Что сделали за 2 недели</label>
+        <textarea rows="3">Собрали семантику по каталогу, отдали техзадачу в разработку</textarea></div>
+      <div class="field"><label>Что дальше</label>
+        <textarea rows="3">Мета-теги на 500 карточек, шаблон карточки товара</textarea></div>
+      <div class="field"><label>Риски и от кого зависим</label>
+        <textarea rows="2">Ждём разработку, вторая неделя в очереди</textarea></div>
+      <div class="actions">
+        <button class="primary" type="button">Опубликовать</button>
+        <span class="muted">→ комментарий + Статус + Факт + дата следующего</span>
+      </div>
+    </div>
+  </div>
+  <script>
+    document.getElementById('statuses').addEventListener('click',(e)=>{
+      const b=e.target.closest('.st'); if(!b) return;
+      [...document.querySelectorAll('.st')].forEach(x=>x.classList.toggle('on',x===b));
+    });
+  </script>
+</body>
+</html>

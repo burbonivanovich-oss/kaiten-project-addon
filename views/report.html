@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <link rel="stylesheet" href="index.css">
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+</head>
+<body>
+  <div id="report">
+    <div class="field">
+      <label>Как идём?</label>
+      <div class="statuses" id="statuses">
+        <button type="button" class="st ok"   data-v="В плане">🟢 В плане</button>
+        <button type="button" class="st warn" data-v="Отстаёт">🟡 Отстаём</button>
+        <button type="button" class="st bad"  data-v="Критичные проблемы">🔴 Горит</button>
+      </div>
+    </div>
+    <div class="field">
+      <label for="fact">Факт по метрике <span class="muted" id="metric-hint"></span></label>
+      <input id="fact" type="number" step="any" placeholder="одно число">
+    </div>
+    <div class="field"><label for="done">Что сделали за 2 недели</label><textarea id="done" rows="3"></textarea></div>
+    <div class="field"><label for="next">Что дальше</label><textarea id="next" rows="3"></textarea></div>
+    <div class="field"><label for="risks">Риски и от кого зависим</label><textarea id="risks" rows="2"></textarea></div>
+    <div class="actions">
+      <button id="submit" class="primary" type="button">Опубликовать</button>
+      <span id="msg" class="muted"></span>
+    </div>
+  </div>
+  <script src="js/report.js"></script>
+</body>
+</html>
