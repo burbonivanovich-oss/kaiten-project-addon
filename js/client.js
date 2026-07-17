@@ -37,6 +37,8 @@ const PROJECT_TYPE = 'Проект';
 // id типа «Проект» в этой инсталляции Kaiten (SDK отдаёт карточку без объекта type).
 // При переносе аддона в другую компанию поменяйте на её id (GET /card-types).
 const PROJECT_TYPE_IDS = [696186];
+// База страниц аддона: signUrl/openPopup резолвят пути не от /views/, поэтому абсолютно.
+const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус', metric: 'Метрика', plan: 'План', fact: 'Факт' };
@@ -102,7 +104,7 @@ var initResult = Addon.initialize({
     try {
       const card = await ctx.getCard();
       if (!(await isProject(ctx, card))) { dbg('body: not a project'); return []; }
-      const url = ctx.signUrl('./project.html');
+      const url = ctx.signUrl(BASE + 'project.html');
       dbg('body signUrl ok: ' + String(url).slice(0, 60));
       return [{
         title: 'Ход проекта',
@@ -128,7 +130,7 @@ var initResult = Addon.initialize({
         text: '📝 Отчёт за 2 недели',
         callback: (btnCtx) => btnCtx.openPopup({
           title: 'Отчёт по проекту',
-          url: './report.html',
+          url: BASE + 'report.html',
           width: 460,
           height: 560,
         }),
@@ -141,7 +143,7 @@ var initResult = Addon.initialize({
         text: '🆕 Создать проект',
         callback: (btnCtx) => btnCtx.openPopup({
           title: 'Новый проект',
-          url: './new-project.html',
+          url: BASE + 'new-project.html',
           width: 460,
           height: 520,
         }),
