@@ -39,6 +39,9 @@ const PROJECT_TYPE = 'Проект';
 const PROJECT_TYPE_IDS = [696186];
 // База страниц аддона: signUrl/openPopup резолвят пути не от /views/, поэтому абсолютно.
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
+// Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
+// браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
+const PAGE_V = '?v=3';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус', metric: 'Метрика', plan: 'План', fact: 'Факт' };
@@ -104,7 +107,7 @@ var initResult = Addon.initialize({
     try {
       const card = await ctx.getCard();
       if (!(await isProject(ctx, card))) { dbg('body: not a project'); return []; }
-      const url = ctx.signUrl(BASE + 'project.html');
+      const url = ctx.signUrl(BASE + 'project.html' + PAGE_V);
       dbg('body signUrl ok: ' + String(url).slice(0, 60));
       return [{
         title: 'Ход проекта',
@@ -130,7 +133,7 @@ var initResult = Addon.initialize({
         text: '📝 Отчёт за 2 недели',
         callback: (btnCtx) => btnCtx.openPopup({
           title: 'Отчёт по проекту',
-          url: BASE + 'report.html',
+          url: BASE + 'report.html' + PAGE_V,
           width: 460,
           height: 560,
         }),
@@ -143,7 +146,7 @@ var initResult = Addon.initialize({
         text: '🆕 Создать проект',
         callback: (btnCtx) => btnCtx.openPopup({
           title: 'Новый проект',
-          url: BASE + 'new-project.html',
+          url: BASE + 'new-project.html' + PAGE_V,
           width: 460,
           height: 520,
         }),
