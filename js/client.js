@@ -11,6 +11,13 @@
  * молчит — иначе он замусорит доски команд.
  */
 
+// Временная отладка: шлём вехи в родительское окно, чтобы их было видно
+// из консоли хоста (удалить после стабилизации).
+function dbg(step, extra) {
+  try { window.parent.postMessage({ type: 'ADDON_DEBUG', step, extra: extra || null }, '*'); } catch (e) {}
+}
+dbg('client.js loaded', { hasAddon: typeof Addon !== 'undefined' });
+
 const PROJECT_TYPE = 'Проект';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
@@ -47,9 +54,11 @@ async function propValue(ctx, card, name) {
   return raw;
 }
 
+dbg('before Addon.initialize');
 Addon.initialize({
   /* 1. БЕЙДЖИ НА ДОСКЕ — светофор и процент, не открывая карточку. */
   card_facade_badges: async (ctx) => {
+    dbg('card_facade_badges called');
     const card = await ctx.getCard();
     if (!isProject(card)) return [];
 
@@ -65,6 +74,7 @@ Addon.initialize({
   /* 2. СТРАНИЦА ПРОЕКТА внутри карточки.
      signUrl обязателен: он подписывает адрес, иначе страница не получит контекст. */
   card_body_section: async (ctx) => {
+    dbg('card_body_section called');
     const card = await ctx.getCard();
     if (!isProject(card)) return [];
 
@@ -76,6 +86,7 @@ Addon.initialize({
 
   /* 3. КНОПКИ — отчёт и быстрое заведение нового проекта. */
   card_buttons: async (ctx) => {
+    dbg('card_buttons called');
     const card = await ctx.getCard();
 
     const perms = ctx.getPermissions();
