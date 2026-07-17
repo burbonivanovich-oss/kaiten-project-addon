@@ -74,6 +74,7 @@ var initResult = Addon.initialize({
   /* 1. БЕЙДЖИ НА ДОСКЕ — светофор и процент, не открывая карточку. */
   card_facade_badges: async (ctx) => {
     dbg('card_facade_badges called');
+    try {
     const card = await ctx.getCard();
     if (!isProject(card)) return [];
 
@@ -83,28 +84,35 @@ var initResult = Addon.initialize({
 
     if (status) badges.push({ text: status, color: STATUS_COLOR[status] || '#888780' });
     if (total) badges.push({ text: `${pct}% · ${done}/${total}` });
+    dbg('badges result ' + badges.length);
     return badges;
+    } catch (e) { dbg('badges ERROR ' + (e && e.message)); return []; }
   },
 
   /* 2. СТРАНИЦА ПРОЕКТА внутри карточки.
      signUrl обязателен: он подписывает адрес, иначе страница не получит контекст. */
   card_body_section: async (ctx) => {
     dbg('card_body_section called');
-    const card = await ctx.getCard();
-    if (!isProject(card)) return [];
-
-    return [{
-      title: 'Ход проекта',
-      content: { type: 'iframe', url: ctx.signUrl('./project.html'), height: 460 },
-    }];
+    try {
+      const card = await ctx.getCard();
+      if (!isProject(card)) { dbg('body: not a project'); return []; }
+      const url = ctx.signUrl('./project.html');
+      dbg('body signUrl ok: ' + String(url).slice(0, 60));
+      return [{
+        title: 'Ход проекта',
+        content: { type: 'iframe', url: url, height: 460 },
+      }];
+    } catch (e) { dbg('body ERROR ' + (e && e.message)); return []; }
   },
 
   /* 3. КНОПКИ — отчёт и быстрое заведение нового проекта. */
   card_buttons: async (ctx) => {
     dbg('card_buttons called');
+    try {
     const card = await ctx.getCard();
 
-    const perms = ctx.getPermissions();
+    let perms = null;
+    try { perms = ctx.getPermissions(); } catch (pe) { dbg('perms error ' + (pe && pe.message)); }
     if (perms && perms.card && perms.card.update === false) return [];
 
     const buttons = [];
@@ -134,7 +142,9 @@ var initResult = Addon.initialize({
       });
     }
 
+    dbg('buttons result ' + buttons.length);
     return buttons;
+    } catch (e) { dbg('buttons ERROR ' + (e && e.message)); return []; }
   },
 });
 
