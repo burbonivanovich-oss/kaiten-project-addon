@@ -15,6 +15,9 @@ const api = iframe.getApiClient();
 const F = { plan: 'План' };
 const GOAL_TYPE = 'Цель';
 const PROJECT_TYPE = 'Проект';
+// Доска «Проекты» этой инсталляции: новые проекты падают в портфель, с какой бы
+// карточки ни открыли форму. Перебивается настройкой аддона new_project_board_id.
+const DEFAULT_BOARD_ID = 1833089;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
@@ -83,9 +86,9 @@ async function init() {
     try {
       const types = await api.get('/api/v1/card-types');
       const projType = (types || []).find((t) => t.name === PROJECT_TYPE);
-      // доска: из настроек аддона, если задана; иначе — откуда открыли форму.
-      // С карточки Цели без настройки проект уехал бы на доску целей.
-      let boardId = card.board_id;
+      // доска: настройка аддона → дефолт-портфель → доска карточки.
+      // Без этого проект, заведённый с карточки Цели, уехал бы на доску целей.
+      let boardId = DEFAULT_BOARD_ID || card.board_id;
       try {
         const all = await iframe.getSettings();
         const s = (Array.isArray(all) ? all[0] : all) || {};

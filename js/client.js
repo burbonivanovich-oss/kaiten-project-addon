@@ -33,7 +33,8 @@ const DEFAULTS = {
   project_type_ids: [696186],   // тип «Проект»
   goal_type_ids: [696185],      // тип «Цель»
   direction_type_ids: [696272], // тип «Направление»
-  new_project_board_id: null,   // доска для новых проектов; null = доска карточки
+  new_project_board_id: 1833089, // доска «Проекты» — форма кладёт проекты сюда,
+                                 // с какой бы карточки её ни открыли; null = доска карточки
   silent_days: 14,              // порог «молчим» для бейджа
 };
 
@@ -41,7 +42,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=4';
+const PAGE_V = 'v=5';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
