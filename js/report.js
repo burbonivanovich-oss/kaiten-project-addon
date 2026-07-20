@@ -12,7 +12,7 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { status: 'Статус', metric: 'Метрика', fact: 'Факт', nextReport: 'Следующий отчёт' };
+const F = { status: 'Статус', metric: 'Что меряем', fact: 'Факт', nextReport: 'Когда отчитаться' };
 
 let chosen = null, card = null, defs = [];
 const $ = (id) => document.getElementById(id);

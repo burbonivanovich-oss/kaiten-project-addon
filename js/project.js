@@ -12,7 +12,7 @@ const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 const root = document.getElementById('root');
 
-const F = { status: 'Статус', metric: 'Метрика', plan: 'План', fact: 'Факт' };
+const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт' };
 const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Критичные проблемы': 'bad' };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
