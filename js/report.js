@@ -47,7 +47,7 @@ async function ensureAuth() {
       <button id="auth-btn" type="button" class="primary">Разрешить доступ</button>
       <div class="gate-msg" id="auth-msg"></div>`;
     document.body.prepend(gate);
-    iframe.fitSize && iframe.fitSize();
+    iframe.fitSize('.gate');   // без селектора модалка не растёт — меряем сам гейт
     gate.querySelector('#auth-btn').addEventListener('click', async () => {
       gate.querySelector('#auth-msg').textContent = 'Жду подтверждения в окне Kaiten…';
       try { await api.authorize(); gate.remove(); resolve(); }
