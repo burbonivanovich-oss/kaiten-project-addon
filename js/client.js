@@ -42,7 +42,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=5';
+const PAGE_V = 'v=6';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -176,11 +176,13 @@ var initResult = Addon.initialize({
     const goal = isGoal(cfg, card);
     const dir = isDirection(cfg, card);
 
+    // Формы открываем ЦЕНТРИРОВАННОЙ МОДАЛКОЙ (openDialog), а не openPopup:
+    // попап прибит к кнопке, имеет фиксированную высоту и режет контент.
     if (proj) {
       buttons.push({
         text: '📝 Отчёт за 2 недели',
-        callback: (c) => c.openPopup({
-          title: 'Отчёт по проекту', url: pageUrl('report.html'), width: 460, height: 560,
+        callback: (c) => c.openDialog({
+          title: 'Отчёт по проекту', url: pageUrl('report.html'), width: 'sm',
         }),
       });
     }
@@ -189,9 +191,9 @@ var initResult = Addon.initialize({
       // цель-родитель предзаполнена — заведение проекта прямо с цели
       buttons.push({
         text: '➕ Проект к этой цели',
-        callback: (c) => c.openPopup({
+        callback: (c) => c.openDialog({
           title: 'Новый проект', url: pageUrl('new-project.html', 'goal=' + card.id),
-          width: 460, height: 560,
+          width: 'sm',
         }),
       });
     }
@@ -199,8 +201,8 @@ var initResult = Addon.initialize({
     if (proj || /ШАБЛОН/.test(card.title || '')) {
       buttons.push({
         text: '🆕 Создать проект',
-        callback: (c) => c.openPopup({
-          title: 'Новый проект', url: pageUrl('new-project.html'), width: 460, height: 560,
+        callback: (c) => c.openDialog({
+          title: 'Новый проект', url: pageUrl('new-project.html'), width: 'sm',
         }),
       });
     }
@@ -208,8 +210,8 @@ var initResult = Addon.initialize({
     if (proj || goal || dir) {
       buttons.push({
         text: '📋 Сводка для руководства',
-        callback: (c) => c.openPopup({
-          title: 'Сводка', url: pageUrl('summary.html'), width: 560, height: 600,
+        callback: (c) => c.openDialog({
+          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'md',
         }),
       });
     }

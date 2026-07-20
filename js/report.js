@@ -25,18 +25,29 @@ function selectValueId(name, value) {
   return v ? v.id : null;
 }
 
-/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов. */
+// Модалка и попап закрываются разными командами — пробуем обе.
+function closeSelf() {
+  try { iframe.closeDialog(); } catch (e) { try { iframe.closePopup(); } catch (e2) {} }
+}
+
+/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов.
+   Пока токена нет, форма спрятана и виден только гейт. */
 async function ensureAuth() {
   try { await api.getAccessToken(); return; } catch (e) { /* токена ещё нет */ }
+  const form = document.getElementById('report');
+  form.style.display = 'none';
   await new Promise((resolve) => {
     const gate = document.createElement('div');
+    gate.className = 'gate';
     gate.innerHTML = `
-      <p class="muted">Нужно разовое разрешение на доступ к Kaiten от вашего имени —
-      без него отчёт не опубликуется.</p>
-      <p><button id="auth-btn" type="button">🔓 Разрешить</button></p>
-      <p class="muted" id="auth-msg"></p>`;
+      <div class="gate-icon">🔐</div>
+      <div class="gate-title">Нужно разовое разрешение</div>
+      <p class="gate-text">Отчёт публикуется от вашего имени, поэтому Kaiten
+      один раз спросит, доверяете ли вы аддону. Дальше — без вопросов.</p>
+      <button id="auth-btn" type="button" class="primary">Разрешить доступ</button>
+      <div class="gate-msg" id="auth-msg"></div>`;
     document.body.prepend(gate);
-    iframe.fitSize('#report');
+    iframe.fitSize && iframe.fitSize();
     gate.querySelector('#auth-btn').addEventListener('click', async () => {
       gate.querySelector('#auth-msg').textContent = 'Жду подтверждения в окне Kaiten…';
       try { await api.authorize(); gate.remove(); resolve(); }
@@ -46,6 +57,7 @@ async function ensureAuth() {
       }
     });
   });
+  form.style.display = '';
 }
 
 async function init() {
@@ -106,7 +118,8 @@ async function submit() {
     }
 
     msg('Готово');
-    iframe.closePopup();
+    iframe.showSnackbar('Отчёт опубликован', 'success');
+    closeSelf();
   } catch (e) {
     $('submit').disabled = false;
     msg('Ошибка: ' + (e && e.message ? e.message : 'не удалось опубликовать'));

@@ -21,16 +21,27 @@ const DEFAULT_BOARD_ID = 1833089;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
-/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов. */
+// Модалка и попап закрываются разными командами — пробуем обе.
+function closeSelf() {
+  try { iframe.closeDialog(); } catch (e) { try { iframe.closePopup(); } catch (e2) {} }
+}
+
+/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов.
+   Пока токена нет, форма спрятана и виден только гейт. */
 async function ensureAuth() {
   try { await api.getAccessToken(); return; } catch (e) { /* токена ещё нет */ }
+  const form = document.getElementById('f');
+  form.style.display = 'none';
   await new Promise((resolve) => {
     const gate = document.createElement('div');
+    gate.className = 'gate';
     gate.innerHTML = `
-      <p class="hint">Нужно разовое разрешение на доступ к Kaiten от вашего имени —
-      без него форма не сможет создать карточку.</p>
-      <p><button id="auth-btn" type="button">🔓 Разрешить</button></p>
-      <p class="hint" id="auth-msg"></p>`;
+      <div class="gate-icon">🔐</div>
+      <div class="gate-title">Нужно разовое разрешение</div>
+      <p class="gate-text">Форма создаёт карточку от вашего имени, поэтому Kaiten
+      один раз спросит, доверяете ли вы аддону. Дальше — без вопросов.</p>
+      <button id="auth-btn" type="button" class="primary">Разрешить доступ</button>
+      <div class="gate-msg" id="auth-msg"></div>`;
     document.body.prepend(gate);
     iframe.fitSize && iframe.fitSize();
     gate.querySelector('#auth-btn').addEventListener('click', async () => {
@@ -42,6 +53,7 @@ async function ensureAuth() {
       }
     });
   });
+  form.style.display = '';
 }
 
 async function init() {
@@ -117,7 +129,7 @@ async function init() {
 
       msg(`✅ Проект #${created.id} создан. Каркас доедет автоматикой.`);
       iframe.showSnackbar(`Проект «${created.title}» создан`, 'success');
-      setTimeout(() => iframe.closePopup(), 1200);
+      setTimeout(closeSelf, 1200);
     } catch (e) {
       msg('⚠️ Не получилось: ' + (e && e.message ? e.message : e));
       btn.disabled = false;

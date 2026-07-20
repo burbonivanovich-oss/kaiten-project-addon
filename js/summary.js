@@ -25,10 +25,14 @@ async function ensureAuth() {
   try { await api.getAccessToken(); return; } catch (e) { /* токена ещё нет */ }
   await new Promise((resolve) => {
     root.innerHTML = `
-      <div class="muted">Чтобы собрать сводку, аддону нужно разовое
-      разрешение читать данные Kaiten от вашего имени.</div>
-      <p><button id="auth-btn" type="button">🔓 Разрешить</button></p>
-      <div class="muted" id="auth-msg"></div>`;
+      <div class="gate">
+        <div class="gate-icon">🔐</div>
+        <div class="gate-title">Нужно разовое разрешение</div>
+        <p class="gate-text">Сводка читает данные Kaiten от вашего имени —
+        один раз подтвердите доступ, дальше без вопросов.</p>
+        <button id="auth-btn" type="button" class="primary">Разрешить доступ</button>
+        <div class="gate-msg" id="auth-msg"></div>
+      </div>`;
     iframe.fitSize('#root');
     document.getElementById('auth-btn').addEventListener('click', async () => {
       document.getElementById('auth-msg').textContent = 'Жду подтверждения в окне Kaiten…';
