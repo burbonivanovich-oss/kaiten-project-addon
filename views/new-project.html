@@ -11,21 +11,21 @@
     <label>Название проекта *
       <input id="title" required placeholder="Например: Партнёрство с …" />
     </label>
-    <label>План, ₽ (ожидаемый эффект)
-      <input id="plan" type="number" min="0" placeholder="Пусто = эффект ещё не оценён" />
+    <label>План, ₽ <span class="hint">— пусто, если эффект ещё не оценён</span>
+      <input id="plan" type="number" min="0" placeholder="0" />
     </label>
-    <label>Срок (когда должен доехать)
+    <label>Срок
       <input id="due" type="date" />
     </label>
     <label>Цель из «1 · Цели»
       <select id="goal"><option value="">— выбрать позже —</option></select>
     </label>
-    <p class="hint">Статус «В плане», дата первого отчёта и паспорт-инструкция появятся автоматически.</p>
     <div class="row">
       <button type="submit" id="go">Создать проект</button>
     </div>
+    <p class="hint">Статус, дата первого отчёта и паспорт-инструкция появятся автоматически.</p>
     <div id="msg" class="hint"></div>
   </form>
-  <script src="../js/new-project.js?v=7"></script>
+  <script src="../js/new-project.js?v=8"></script>
 </body>
 </html>

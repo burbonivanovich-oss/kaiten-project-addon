@@ -136,7 +136,9 @@ async function init() {
     }
   });
 
-  iframe.fitSize('#f');
+  // Меряем ПОСЛЕ полной отрисовки (select уже наполнен опциями), иначе
+  // модалка получает высоту недостроенной формы и низ уходит под скролл.
+  requestAnimationFrame(() => iframe.fitSize('#f'));
 }
 
 init().catch((e) => msg('Не удалось открыть: ' + (e && e.message)));

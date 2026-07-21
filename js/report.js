@@ -82,7 +82,7 @@ async function init() {
   });
 
   $('submit').addEventListener('click', submit);
-  iframe.fitSize('#report');
+  requestAnimationFrame(() => iframe.fitSize('#report'));
 }
 
 async function submit() {
