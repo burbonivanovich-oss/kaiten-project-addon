@@ -33,8 +33,10 @@ const DEFAULTS = {
   project_type_ids: [696186],   // тип «Проект»
   goal_type_ids: [696185],      // тип «Цель»
   direction_type_ids: [696272], // тип «Направление»
+  task_type_ids: [696187],      // тип «Задача»
   new_project_board_id: 1833089, // доска «Проекты» — форма кладёт проекты сюда,
                                  // с какой бы карточки её ни открыли; null = доска карточки
+  functions_space_id: 814151,   // пространство «3 · Работа команд» — доски-функцзоны
   silent_days: 14,              // порог «молчим» для бейджа
 };
 
@@ -77,6 +79,7 @@ function typeId(card) {
 const isProject = (cfg, card) => cfg.project_type_ids.indexOf(typeId(card)) !== -1;
 const isGoal = (cfg, card) => cfg.goal_type_ids.indexOf(typeId(card)) !== -1;
 const isDirection = (cfg, card) => cfg.direction_type_ids.indexOf(typeId(card)) !== -1;
+const isTask = (cfg, card) => cfg.task_type_ids.indexOf(typeId(card)) !== -1;
 
 function pageUrl(name, params) {
   return BASE + name + '?' + PAGE_V + (params ? '&' + params : '');
@@ -153,6 +156,13 @@ var initResult = Addon.initialize({
         return [{
           title: isDirection(cfg, card) ? 'Сводка направления' : 'Проекты этой цели',
           content: { type: 'iframe', url: ctx.signUrl(pageUrl('goal.html')), height: 420 },
+        }];
+      }
+      if (isTask(cfg, card)) {
+        // маршрут функцзон: кнопки-передачи задачи между досками команд
+        return [{
+          title: 'Маршрут функцзон',
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('route.html')), height: 300 },
         }];
       }
       dbg('body: not our type');

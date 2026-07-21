@@ -151,6 +151,22 @@ select:focus { outline: none; border-color: var(--accent); }
            font-variant-numeric: tabular-nums; font-size: 12px; }
 .g-foot { margin-top: 10px; font-size: 12px; }
 
+/* ── маршрут функцзон ── */
+.route-now { font-size: 14px; margin-bottom: 14px; }
+.route-label { font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
+               color: var(--muted); margin-bottom: 8px; }
+.route-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+.route-btn {
+  padding: 6px 12px; border: 1px solid var(--line); border-radius: 20px;
+  background: transparent; color: var(--fg-2); font: inherit; font-size: 13px;
+  cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+}
+.route-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
+.route-btn:disabled { opacity: .55; cursor: default; }
+.route-btn.current { border-color: var(--accent); background: var(--accent-soft);
+                     color: var(--accent); font-weight: 600; opacity: 1; }
+.route-msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
            color: #fff; font: inherit; font-weight: 500; cursor: pointer; }
