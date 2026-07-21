@@ -151,21 +151,33 @@ select:focus { outline: none; border-color: var(--accent); }
            font-variant-numeric: tabular-nums; font-size: 12px; }
 .g-foot { margin-top: 10px; font-size: 12px; }
 
-/* ── маршрут функцзон ── */
-.route-now { font-size: 14px; margin-bottom: 14px; }
+/* ── маршрут функцзон: цепочка этапов ── */
 .route-label { font-size: 12px; letter-spacing: .04em; text-transform: uppercase;
-               color: var(--muted); margin-bottom: 8px; }
-.route-grid { display: flex; flex-wrap: wrap; gap: 6px; }
-.route-btn {
-  padding: 6px 12px; border: 1px solid var(--line); border-radius: 20px;
-  background: transparent; color: var(--fg-2); font: inherit; font-size: 13px;
-  cursor: pointer; transition: border-color .12s, background .12s, color .12s;
+               color: var(--muted); margin-bottom: 10px; }
+.chain, .chain-edit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: 4px; }
+.step {
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 5px 11px 5px 8px; border-radius: 18px; font-size: 13px;
+  border: 1px solid var(--line); color: var(--fg-2);
 }
-.route-btn:hover:not(:disabled) { border-color: var(--accent); color: var(--accent); }
-.route-btn:disabled { opacity: .55; cursor: default; }
-.route-btn.current { border-color: var(--accent); background: var(--accent-soft);
-                     color: var(--accent); font-weight: 600; opacity: 1; }
-.route-msg { margin-top: 12px; font-size: 13px; min-height: 18px; }
+.step i { display: inline-flex; align-items: center; justify-content: center; font-style: normal;
+          width: 17px; height: 17px; border-radius: 50%; font-size: 11px; font-weight: 700;
+          background: var(--track); color: var(--muted); }
+.step.done { color: var(--fg-2); border-color: color-mix(in srgb, var(--ok) 40%, var(--line)); }
+.step.done i { background: var(--ok); color: #fff; }
+.step.now { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.step.now i { background: var(--accent); color: #fff; }
+.step .x { cursor: pointer; color: var(--muted); font-weight: 400; margin-left: 2px; }
+.step .x:hover { color: var(--bad); }
+.arrow { color: var(--muted); font-size: 13px; }
+
+.route-action { margin: 16px 0 4px; }
+.route-fin { font-size: 14px; color: var(--ok); font-weight: 500; }
+.route-add { margin-top: 10px; }
+.route-msg { margin-top: 10px; font-size: 13px; min-height: 18px; }
+.linkbtn { background: none; border: 0; color: var(--muted); font: inherit; font-size: 13px;
+           cursor: pointer; padding: 0; margin-top: 12px; text-decoration: underline; }
+.linkbtn:hover { color: var(--accent); }
 
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
