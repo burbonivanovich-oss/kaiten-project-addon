@@ -179,6 +179,14 @@ select:focus { outline: none; border-color: var(--accent); }
            cursor: pointer; padding: 0; margin-top: 12px; text-decoration: underline; }
 .linkbtn:hover { color: var(--accent); }
 
+/* ── оформить идею ── */
+.convert-lead { font-size: 14px; color: var(--fg-2); margin: 0 0 16px; max-width: 52ch; }
+.convert-btns { display: flex; gap: 10px; flex-wrap: wrap; }
+.primary.ghost { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+.primary.ghost:hover { background: var(--accent-soft); filter: none; }
+.convert-done { font-size: 14px; line-height: 1.5; }
+.convert-done a { color: var(--accent); }
+
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
            color: #fff; font: inherit; font-weight: 500; cursor: pointer; }

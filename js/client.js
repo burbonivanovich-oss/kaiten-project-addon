@@ -34,6 +34,7 @@ const DEFAULTS = {
   goal_type_ids: [696185],      // тип «Цель»
   direction_type_ids: [696272], // тип «Направление»
   task_type_ids: [696187],      // тип «Задача»
+  hypothesis_type_ids: [697918], // тип «Гипотеза»
   new_project_board_id: 1833089, // доска «Проекты» — форма кладёт проекты сюда,
                                  // с какой бы карточки её ни открыли; null = доска карточки
   functions_space_id: 814151,   // пространство «3 · Работа команд» — доски-функцзоны
@@ -44,7 +45,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=11';
+const PAGE_V = 'v=12';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -80,6 +81,7 @@ const isProject = (cfg, card) => cfg.project_type_ids.indexOf(typeId(card)) !== 
 const isGoal = (cfg, card) => cfg.goal_type_ids.indexOf(typeId(card)) !== -1;
 const isDirection = (cfg, card) => cfg.direction_type_ids.indexOf(typeId(card)) !== -1;
 const isTask = (cfg, card) => cfg.task_type_ids.indexOf(typeId(card)) !== -1;
+const isHypothesis = (cfg, card) => cfg.hypothesis_type_ids.indexOf(typeId(card)) !== -1;
 
 function pageUrl(name, params) {
   return BASE + name + '?' + PAGE_V + (params ? '&' + params : '');
@@ -163,6 +165,13 @@ var initResult = Addon.initialize({
         return [{
           title: 'Маршрут функцзон',
           content: { type: 'iframe', url: ctx.signUrl(pageUrl('route.html')), height: 300 },
+        }];
+      }
+      if (isHypothesis(cfg, card)) {
+        // конвертация идеи в проект или задачу
+        return [{
+          title: 'Оформить идею',
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('convert.html')), height: 240 },
         }];
       }
       dbg('body: not our type');
