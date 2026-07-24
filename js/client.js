@@ -46,7 +46,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=17';
+const PAGE_V = 'v=18';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -94,8 +94,8 @@ function progress(card) {
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 }
 
-async function propValue(ctx, card, name) {
-  const props = await ctx.getCardProperties();
+// Читает значение свойства из УЖЕ полученного массива props (без round-trip).
+function readVal(props, card, name) {
   const def = (props || []).find((p) => p.name === name);
   if (!def) return null;
   const raw = (card.properties || {})[`id_${def.id}`];
@@ -105,6 +105,11 @@ async function propValue(ctx, card, name) {
     return v ? (v.value || v.display_value) : null;
   }
   return raw;
+}
+
+async function propValue(ctx, card, name) {
+  const props = await ctx.getCardProperties();
+  return readVal(props, card, name);
 }
 
 function silentDays(card) {
@@ -153,17 +158,20 @@ var initResult = Addon.initialize({
         // getCard() ВНУТРИ секции отдаёт карточку без .properties, поэтому
         // статус/метрику/план/факт считаем здесь (в коннекторе свойства есть)
         // и передаём в URL — хиро секции рисуется из них, без OAuth.
+        // ВАЖНО: свойства берём ОДНИМ запросом (4 отдельных round-trip'а
+        // раньше подвешивали секцию — Kaiten отваливал её по таймауту).
         const p = [];
-        const st = await propValue(ctx, card, 'Статус');
-        const mt = await propValue(ctx, card, 'Что меряем');
-        const pl = await propValue(ctx, card, 'План');
-        const fc = await propValue(ctx, card, 'Факт');
-        const sd = silentDays(card);
-        if (st != null) p.push('st=' + encodeURIComponent(st));
-        if (mt != null) p.push('mt=' + encodeURIComponent(mt));
-        if (pl != null) p.push('pl=' + encodeURIComponent(pl));
-        if (fc != null) p.push('fc=' + encodeURIComponent(fc));
-        if (sd != null) p.push('sd=' + sd);
+        try {
+          const props = await ctx.getCardProperties();
+          const val = (nm) => readVal(props, card, nm);
+          const st = val('Статус'), mt = val('Что меряем'), pl = val('План'), fc = val('Факт');
+          const sd = silentDays(card);
+          if (st != null) p.push('st=' + encodeURIComponent(st));
+          if (mt != null) p.push('mt=' + encodeURIComponent(mt));
+          if (pl != null) p.push('pl=' + encodeURIComponent(pl));
+          if (fc != null) p.push('fc=' + encodeURIComponent(fc));
+          if (sd != null) p.push('sd=' + sd);
+        } catch (e) { dbg('body params err ' + (e && e.message)); }
         return [{
           title: 'Ход проекта',
           content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html', p.join('&'))), height: 460 },
