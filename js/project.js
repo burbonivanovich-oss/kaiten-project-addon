@@ -142,7 +142,9 @@ async function render() {
   // (getCard без .properties, getCardProperties не отдаёт значения). Их кладут
   // в card-хранилище бейджи (там getCardProperties работает) — читаем оттуда.
   let s = {};
-  try { s = (await iframe.getData('card', 'shared', 'proj_summary')) || {}; } catch (e) { /* нет сводки */ }
+  let dsrc = 'none';
+  try { const d = await iframe.getData('card', 'shared', 'proj_summary'); if (d) { s = d; dsrc = 'shared'; } } catch (e) {}
+  if (dsrc === 'none') { try { const d = await iframe.getData('card', 'private', 'proj_summary'); if (d) { s = d; dsrc = 'private'; } } catch (e) {} }
 
   const status = s.status || null;
   const metric = s.metric || null;
@@ -156,21 +158,40 @@ async function render() {
 
   const silent = s.silent != null ? s.silent : daysAgo(card.comment_last_added_at || card.created);
   const dueIso = s.due || card.due_date;
-  const statusCls = STATUS_CLASS[status] || '';
-  const heroCls = statusCls || 'ok';
   const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
   const due = dueIso ? `срок ${new Date(dueIso).toLocaleDateString('ru')}` : 'срок не задан';
 
-  const heroHtml = `
-    <div class="hero ${heroCls}">
+  // Есть статус (мост данных сработал) → хиро ведёт статусом и красится по нему.
+  // Нет статуса → хиро ведёт ГОТОВНОСТЬЮ (это всегда доступно), без ложного
+  // «статус не задан».
+  let heroHtml;
+  if (status) {
+    const statusCls = STATUS_CLASS[status] || 'ok';
+    heroHtml = `
+    <div class="hero ${statusCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
-        <div class="hero-status">${esc(status || 'статус не задан')}</div>
+        <div class="hero-status">${esc(status)}</div>
         <div class="hero-sub">${stale}${due}</div>
       </div>
       <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
-    </div>
+    </div>`;
+  } else {
+    const doneCls = pct >= 100 ? 'ok' : 'ok';
+    const lead = total ? `${done} из ${total} задач сделано` : 'Проект';
+    heroHtml = `
+    <div class="hero ${doneCls}">
+      <span class="hero-dot"></span>
+      <div class="hero-main">
+        <div class="hero-status">${esc(lead)}</div>
+        <div class="hero-sub">${stale}${due}</div>
+      </div>
+      <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
+    </div>`;
+  }
 
+  const statusCls = STATUS_CLASS[status] || '';
+  heroHtml += `
     ${metric ? `
     <div class="card">
       <div class="card-title">💰 Метрика · план / факт</div>
@@ -179,7 +200,8 @@ async function render() {
         <div class="grow">${bar(factPct, statusCls)}</div>
         <div class="metric-num"><b>${fact}</b> из ${plan}</div>
       </div>
-    </div>` : ''}`;
+    </div>` : ''}
+    <div class="muted" style="font-size:10px;opacity:.5;padding:2px">data:${dsrc}${status ? '' : ' · нет свойств'}</div>`;
 
   // сразу рисуем базовый слой + место под расширенный
   root.innerHTML = heroHtml + '<div id="ext"><div class="muted" style="padding:4px 2px">Подгружаю задачи…</div></div>';

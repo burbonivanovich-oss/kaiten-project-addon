@@ -46,7 +46,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=20';
+const PAGE_V = 'v=21';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -148,7 +148,8 @@ var initResult = Addon.initialize({
         due: card.due_date || null,
         silent: silent,
       };
-      try { await ctx.setData('card', 'shared', 'proj_summary', summary); } catch (se) { dbg('setData err ' + (se && se.message)); }
+      try { await ctx.setData('card', 'shared', 'proj_summary', summary); } catch (se) { dbg('setData shared err ' + (se && se.message)); }
+      try { await ctx.setData('card', 'private', 'proj_summary', summary); } catch (se) { dbg('setData private err ' + (se && se.message)); }
     } catch (pe) { dbg('badges props err ' + (pe && pe.message)); }
 
     const badges = [];
