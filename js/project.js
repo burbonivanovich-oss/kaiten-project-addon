@@ -193,7 +193,7 @@ async function render() {
     }
     document.getElementById('ext').innerHTML = ext.metricHtml + ext.blocks;
   } else {
-    // API недоступен — не пустуем: показываем готовность и честно про остальное
+    // API недоступен — не пустуем: показываем готовность, кнопку авторизации и честно про остальное
     document.getElementById('ext').innerHTML = `
       <div class="card">
         <div class="card-title">✅ Задачи по командам <span class="cnt">${done} / ${total}</span></div>
@@ -202,9 +202,22 @@ async function render() {
           <div class="grow">${bar(pct)}</div>
           <div class="metric-num"><b>${done}</b> из ${total}</div>
         </div>
-        <div class="load-foot">Статус, метрика, разбивка по командам, загрузка и история появятся,
-        когда у аддона заработает доступ к API (сейчас Kaiten отдаёт токен, который API не принимает).</div>
+        <div class="row" style="margin-top:12px"><button id="authbtn" class="primary" type="button">🔓 Показать полностью</button></div>
+        <div id="authmsg" class="load-foot"></div>
       </div>`;
+    const btn = document.getElementById('authbtn');
+    if (btn) btn.addEventListener('click', async () => {
+      const msg = document.getElementById('authmsg');
+      msg.textContent = 'Жду подтверждения доступа в окне Kaiten…';
+      try {
+        const api = iframe.getApiClient();
+        await api.authorize();
+        msg.textContent = 'Доступ выдан, загружаю…';
+        await render();
+      } catch (e) {
+        msg.textContent = 'Не удалось получить доступ: ' + ((e && e.message) || e);
+      }
+    });
   }
   iframe.fitSize('#root');
 }
