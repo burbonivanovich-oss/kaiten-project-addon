@@ -138,38 +138,28 @@ async function render() {
   // план/факт коннектор (где свойства доступны) передаёт нам параметрами в URL.
   // Если их нет — пробуем всё же прочитать из getCard()/getCardProperties().
   const card = await iframe.getCard();
-  const q = new URLSearchParams(location.search);
-  let defs = [];
-  let defsErr = null;
-  if (!q.has('st') && !q.has('mt')) {
-    try { defs = await iframe.getCardProperties(); } catch (e) { defsErr = (e && e.message) || String(e); }
-  }
-  // диагностика в родителя (ловим слушателем на странице Kaiten)
-  try {
-    window.parent.postMessage({ type: 'ADDON_DEBUG', step: 'section-dbg', extra: {
-      hasCardProps: !!card.properties,
-      cardPropKeys: Object.keys(card.properties || {}).slice(0, 8),
-      defsLen: (defs || []).length, defsErr,
-      cardKeys: Object.keys(card || {}).slice(0, 20),
-    } }, '*');
-  } catch (e) {}
-  const fromQ = (k, fb) => (q.has(k) ? q.get(k) : fb);
+  // Значения свойств (статус/метрика/план/факт) в контексте секции недоступны
+  // (getCard без .properties, getCardProperties не отдаёт значения). Их кладут
+  // в card-хранилище бейджи (там getCardProperties работает) — читаем оттуда.
+  let s = {};
+  try { s = (await iframe.getData('card', 'shared', 'proj_summary')) || {}; } catch (e) { /* нет сводки */ }
 
-  const status = fromQ('st', null) || readProp(defs, card, F.status);
-  const metric = fromQ('mt', null) || readProp(defs, card, F.metric);
-  const plan = Number(fromQ('pl', null) != null ? fromQ('pl', null) : readProp(defs, card, F.plan)) || 0;
-  const fact = Number(fromQ('fc', null) != null ? fromQ('fc', null) : readProp(defs, card, F.fact)) || 0;
+  const status = s.status || null;
+  const metric = s.metric || null;
+  const plan = Number(s.plan) || 0;
+  const fact = Number(s.fact) || 0;
 
-  const total = card.children_count || 0;
-  const done = card.children_done || 0;
+  const total = s.total != null ? s.total : (card.children_count || 0);
+  const done = s.done != null ? s.done : (card.children_done || 0);
   const pct = total ? Math.round((done / total) * 100) : 0;
   const factPct = plan ? Math.round((fact / plan) * 100) : 0;
 
-  const silent = q.has('sd') ? Number(q.get('sd')) : daysAgo(card.comment_last_added_at || card.created);
+  const silent = s.silent != null ? s.silent : daysAgo(card.comment_last_added_at || card.created);
+  const dueIso = s.due || card.due_date;
   const statusCls = STATUS_CLASS[status] || '';
   const heroCls = statusCls || 'ok';
   const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
-  const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
+  const due = dueIso ? `срок ${new Date(dueIso).toLocaleDateString('ru')}` : 'срок не задан';
 
   const heroHtml = `
     <div class="hero ${heroCls}">
