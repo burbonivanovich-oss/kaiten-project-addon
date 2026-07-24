@@ -62,6 +62,15 @@ const bar = (pct, cls) =>
 
 const daysAgo = (iso) => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
 
+// Цвет аватара-инициала — стабильно по имени (не сиреневый на всех).
+const AVA_COLORS = ['#6c5cd4', '#2aa1c0', '#c0692a', '#2f9e6f', '#c0457a', '#5a76d4', '#b8902a'];
+function avatar(name) {
+  const s = String(name || '?');
+  let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  const initial = s.trim().charAt(0).toUpperCase() || '?';
+  return `<span class="ava" style="background:${AVA_COLORS[h % AVA_COLORS.length]}">${esc(initial)}</span>`;
+}
+
 async function render() {
   await ensureAuth();
   const card = await iframe.getCard();
@@ -110,60 +119,72 @@ async function render() {
   const last = comments.length ? comments[comments.length - 1] : null;
   const silent = daysAgo(last && last.created);
 
-  root.innerHTML = `
-    <div class="head">
-      <span class="dot ${STATUS_CLASS[status] || ''}"></span>
-      <span class="status">${esc(status || 'статус не задан')}</span>
-      ${silent != null && silent > 14 ? `<span class="stale">молчим ${silent} дн.</span>` : ''}
-    </div>
+  const statusCls = STATUS_CLASS[status] || '';
+  const heroCls = statusCls || 'ok';   // «здоровье» красит блок; нет статуса → нейтрально-зелёный контур
+  const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
+  const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
-    <div class="row">
-      <div class="label">Готовность</div>
-      <div class="grow">${bar(pct)}</div>
-      <div class="num">${pct}% · ${done}/${total}</div>
+  root.innerHTML = `
+    <div class="hero ${heroCls}">
+      <span class="hero-dot"></span>
+      <div class="hero-main">
+        <div class="hero-status">${esc(status || 'статус не задан')}</div>
+        <div class="hero-sub">${stale}${due}</div>
+      </div>
+      <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
     </div>
 
     ${metric ? `
-    <div class="row">
-      <div class="label">${esc(metric)}</div>
-      <div class="grow">${bar(factPct, STATUS_CLASS[status])}</div>
-      <div class="num">${fact} из ${plan}</div>
+    <div class="card">
+      <div class="card-title">💰 Метрика · план / факт</div>
+      <div class="metric">
+        <div class="metric-label">${esc(metric)}</div>
+        <div class="grow">${bar(factPct, statusCls)}</div>
+        <div class="metric-num"><b>${fact}</b> из ${plan}</div>
+      </div>
     </div>` : ''}
 
-    <div class="section">Задачи по командам</div>
-    ${Object.keys(byBoard).length === 0
-      ? '<div class="muted">Задач пока нет. Заведите их на досках команд и укажите этот проект родителем.</div>'
-      : Object.entries(byBoard).map(([board, list]) => `
-        <div class="board">
-          <div class="board-name">${esc(board)} <span class="muted">${
-            list.filter((c) => c.condition === 2 || c.state === 3).length}/${list.length}</span></div>
-          ${list.map((c) => `
-            <div class="task ${(c.condition === 2 || c.state === 3) ? 'done' : ''}">
-              <span class="tick">${(c.condition === 2 || c.state === 3) ? '✓' : '·'}</span>
-              <span class="t-title">${esc(c.title)}</span>
-              ${c.due_date ? `<span class="due">${new Date(c.due_date).toLocaleDateString('ru')}</span>` : ''}
-            </div>`).join('')}
-        </div>`).join('')}
+    <div class="card">
+      <div class="card-title">✅ Задачи по командам <span class="cnt">${done} / ${total}</span></div>
+      ${Object.keys(byBoard).length === 0
+        ? '<div class="muted">Задач пока нет. Заведите их на досках команд и укажите этот проект родителем.</div>'
+        : Object.entries(byBoard).map(([board, list]) => `
+          <div class="team">
+            <div class="team-name">${esc(board)}<span class="team-badge">${
+              list.filter((c) => c.condition === 2 || c.state === 3).length} / ${list.length}</span></div>
+            ${list.map((c) => {
+              const cdone = c.condition === 2 || c.state === 3;
+              return `
+              <div class="task ${cdone ? 'done' : ''}">
+                <span class="tick">${cdone ? '✓' : ''}</span>
+                <span class="t-title">${esc(c.title)}</span>
+                ${c.due_date ? `<span class="due">${new Date(c.due_date).toLocaleDateString('ru')}</span>` : ''}
+              </div>`; }).join('')}
+          </div>`).join('')}
+    </div>
 
     ${loadRows.length ? `
-    <div class="load-head">Загрузка команды (план) · ${totalPlan} чел-дн</div>
-    ${loadRows.map(([name, days]) => `
-      <div class="load-row">
-        <span class="load-name">${esc(name)}</span>
-        <span class="load-bar">${bar(maxLoad ? Math.round(days / maxLoad * 100) : 0)}</span>
-        <span class="load-num">${days} чел-дн</span>
-      </div>`).join('')}
-    <div class="load-foot">оценка задачи идёт на её исполнителей; заполняется полем «Оценка, чел-дн»</div>
-    ` : ''}
+    <div class="card">
+      <div class="card-title">👥 Загрузка команды (план) <span class="cnt">${totalPlan} чел-дн</span></div>
+      ${loadRows.map(([name, days]) => `
+        <div class="load">
+          ${avatar(name)}
+          <span class="load-name">${esc(name)}</span>
+          <span class="load-bar">${bar(maxLoad ? Math.round(days / maxLoad * 100) : 0)}</span>
+          <span class="load-num">${days}</span>
+        </div>`).join('')}
+      <div class="load-foot">оценка задачи идёт на её исполнителей (поле «Оценка, чел-дн»)</div>
+    </div>` : ''}
 
-    <div class="section">История статусов</div>
-    ${history.length === 0
-      ? '<div class="muted">Пока пусто. Появится, когда статус изменится или выйдет отчёт.</div>'
-      : history.map((c) => `
+    ${history.length ? `
+    <div class="card">
+      <div class="card-title">🕑 История статусов</div>
+      ${history.map((c) => `
         <div class="hist">
           <span class="hist-date">${new Date(c.created).toLocaleDateString('ru')}</span>
           <span class="hist-text">${esc((c.text || '').replace(/[#*]/g, '').slice(0, 90))}</span>
         </div>`).join('')}
+    </div>` : ''}
   `;
 
   iframe.fitSize('#root');   // подогнать высоту iframe под содержимое

@@ -96,26 +96,32 @@ async function render() {
   let planSum = 0, factSum = 0;
   rows.forEach((r) => { n[r.cls]++; planSum += r.plan || 0; factSum += r.fact || 0; });
 
+  const hero = `
+    <div class="hero ${n.bad ? 'bad' : n.warn ? 'warn' : 'ok'}">
+      <span class="hero-dot"></span>
+      <div class="hero-main">
+        <div class="hero-status">${rows.length} ${rows.length === 1 ? 'проект' : 'проектов'}</div>
+        <div class="hero-sub">🟢 ${n.ok} · 🟡 ${n.warn} · 🔴 ${n.bad}${n[''] ? ` · ⚪ ${n['']} без статуса` : ''}</div>
+      </div>
+      <div class="hero-pct"><b>${fmt(factSum)}</b><span>факт / ${fmt(planSum)}</span></div>
+    </div>`;
+
   root.innerHTML = `
-    <div class="head">
-      <span class="status">${rows.length} шт.</span>
-      <span class="chip">🟢 ${n.ok}</span>
-      <span class="chip">🟡 ${n.warn}</span>
-      <span class="chip">🔴 ${n.bad}</span>
-      ${n[''] ? `<span class="chip muted">⚪ ${n['']} без статуса</span>` : ''}
-      <span class="stale-num">План ${fmt(planSum)} · Факт ${fmt(factSum)}</span>
+    ${hero}
+    <div class="card">
+      <div class="card-title">Проекты <span class="cnt">прогресс · деньги</span></div>
+      ${rows.map((r) => `
+        <div class="g-row">
+          <span class="dot ${r.cls}"></span>
+          <span class="g-title">${esc(r.c.title)}</span>
+          ${r.silent ? `<span class="g-silent">🔇 ${r.silent} дн</span>` : ''}
+          <span class="g-bar"><span class="bar"><span class="bar-fill ${r.cls}"
+            style="display:block;width:${Math.min(r.pct, 100)}%"></span></span></span>
+          <span class="g-num">${r.total ? `${r.pct}%` : '—'}</span>
+          <span class="g-money">${fmt(r.plan)}${r.fact != null ? ` / ${fmt(r.fact)}` : ''}</span>
+        </div>`).join('')}
+      <div class="muted g-foot">прогресс = закрытые задачи · деньги = План / Факт</div>
     </div>
-    ${rows.map((r) => `
-      <div class="g-row">
-        <span class="dot ${r.cls}"></span>
-        <span class="g-title">${esc(r.c.title)}</span>
-        ${r.silent ? `<span class="g-silent">🔇 ${r.silent} дн</span>` : ''}
-        <span class="g-bar"><span class="bar"><span class="bar-fill ${r.cls}"
-          style="display:block;width:${Math.min(r.pct, 100)}%"></span></span></span>
-        <span class="g-num">${r.total ? `${r.pct}%` : '—'}</span>
-        <span class="g-money">${fmt(r.plan)}${r.fact != null ? ` / ${fmt(r.fact)}` : ''}</span>
-      </div>`).join('')}
-    <div class="muted g-foot">прогресс = закрытые задачи · деньги = План / Факт</div>
   `;
   iframe.fitSize('#root');
 }
