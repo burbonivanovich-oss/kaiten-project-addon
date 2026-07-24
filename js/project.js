@@ -1,14 +1,18 @@
-/* СТРАНИЦА ПРОЕКТА — один экран, где видно здоровье проекта.
+/* СТРАНИЦА ПРОЕКТА — один экран здоровья проекта.
  *
- * Базовый слой (хиро-статус · готовность · метрика план/факт) берётся из САМОЙ
- * карточки через SDK-методы getCard() и getCardProperties() — они идут по
- * postMessage от имени родителя и OAuth НЕ требуют. Работает всегда.
+ * БАЗОВЫЙ слой (готовность · срок · «молчим») берётся из самой карточки через
+ * SDK getCard() — postMessage, без OAuth. Работает всегда, хиро ведёт готовностью.
  *
- * Расширенный слой (задачи по командам · загрузка · история) требует чтения
- * ДОЧЕРНИХ карточек и комментариев — это уже REST API от имени пользователя
- * (getApiClient/OAuth). Делаем его best-effort: получилось — показываем; не
- * получилось (напр. addon-OAuth аккаунта отдаёт токен, который API не
- * принимает) — не роняем экран, а честно помечаем блок.
+ * РАСШИРЕННЫЙ слой (статус · метрика план/факт · задачи по командам · загрузка ·
+ * история) требует чтения свойств/детей/комментариев — это REST API от имени
+ * пользователя (OAuth). Best-effort: получилось — хиро «повышается» до статусного
+ * и добавляются блоки; не получилось (напр. addon-OAuth аккаунта отдаёт токен,
+ * который API отклоняет 401) — экран не пустует: базовый слой виден, блок помечен.
+ *
+ * Почему значения свойств нельзя взять без API: getCard() в секции отдаёт карточку
+ * без .properties; getCardProperties() в контексте секции значений не даёт, а в
+ * card_body_section вовсе бросает «Unknown subject»; мост через setData/getData
+ * между бейджами и секцией данные не разделяет. Проверено — только API.
  */
 
 const iframe = Addon.iframe();
@@ -45,22 +49,41 @@ function avatar(name) {
   return `<span class="ava" style="background:${AVA_COLORS[h % AVA_COLORS.length]}">${esc(initial)}</span>`;
 }
 
-/* Расширенный слой через REST API. Возвращает готовый HTML или null, если API
- * недоступен (нет токена / 401 / любая ошибка) — тогда экран живёт без него. */
+function heroHtml(cls, title, sub, pct) {
+  return `
+    <div class="hero ${cls}">
+      <span class="hero-dot"></span>
+      <div class="hero-main">
+        <div class="hero-status">${esc(title)}</div>
+        <div class="hero-sub">${sub}</div>
+      </div>
+      <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
+    </div>`;
+}
+
+/* Расширенный слой через REST API. Возвращает { status, metricHtml, blocks } или
+ * null, если API недоступен (нет токена / 401 / ошибка). */
 async function extendedBlocks(card) {
   let api;
   try { api = iframe.getApiClient(); } catch (e) { return null; }
-  // молча пробуем взять токен; нет — уходим в деградацию без гейта
   try { await api.getAccessToken(); } catch (e) { return null; }
 
-  let defs, children, comments;
+  let defs, full, children, comments;
   try {
-    [defs, children, comments] = await Promise.all([
+    [defs, full, children, comments] = await Promise.all([
       api.get('/api/v1/company/custom-properties?limit=200'),
+      api.get(`/api/v1/cards/${card.id}`),
       api.get(`/api/v1/cards/${card.id}/children`),
       api.get(`/api/v1/cards/${card.id}/comments`),
     ]);
   } catch (e) { return null; }
+
+  const status = readProp(defs, full, F.status);
+  const metric = readProp(defs, full, F.metric);
+  const plan = Number(readProp(defs, full, F.plan)) || 0;
+  const fact = Number(readProp(defs, full, F.fact)) || 0;
+  const factPct = plan ? Math.round((fact / plan) * 100) : 0;
+  const statusCls = STATUS_CLASS[status] || '';
 
   const done = children.filter((c) => c.condition === 2 || c.state === 3).length;
   const total = children.length;
@@ -87,7 +110,17 @@ async function extendedBlocks(card) {
 
   const history = comments.filter((c) => /Статус|Отчёт/i.test(c.text || '')).slice(-6).reverse();
 
-  return `
+  const metricHtml = metric ? `
+    <div class="card">
+      <div class="card-title">💰 Метрика · план / факт</div>
+      <div class="metric">
+        <div class="metric-label">${esc(metric)}</div>
+        <div class="grow">${bar(factPct, statusCls)}</div>
+        <div class="metric-num"><b>${fact}</b> из ${plan}</div>
+      </div>
+    </div>` : '';
+
+  const blocks = `
     <div class="card">
       <div class="card-title">✅ Задачи по командам <span class="cnt">${done} / ${total}</span></div>
       ${Object.keys(byBoard).length === 0
@@ -128,100 +161,48 @@ async function extendedBlocks(card) {
           <span class="hist-date">${new Date(c.created).toLocaleDateString('ru')}</span>
           <span class="hist-text">${esc((c.text || '').replace(/[#*]/g, '').slice(0, 90))}</span>
         </div>`).join('')}
-    </div>` : ''}
-  `;
+    </div>` : ''}`;
+
+  return { status, metricHtml, blocks };
 }
 
 async function render() {
-  // Базовый слой — без OAuth.
-  // getCard() в секции отдаёт карточку БЕЗ .properties, поэтому статус/метрику/
-  // план/факт коннектор (где свойства доступны) передаёт нам параметрами в URL.
-  // Если их нет — пробуем всё же прочитать из getCard()/getCardProperties().
   const card = await iframe.getCard();
-  // Значения свойств (статус/метрика/план/факт) в контексте секции недоступны
-  // (getCard без .properties, getCardProperties не отдаёт значения). Их кладут
-  // в card-хранилище бейджи (там getCardProperties работает) — читаем оттуда.
-  let s = {};
-  let dsrc = 'none';
-  try { const d = await iframe.getData('card', 'shared', 'proj_summary'); if (d) { s = d; dsrc = 'shared'; } } catch (e) {}
-  if (dsrc === 'none') { try { const d = await iframe.getData('card', 'private', 'proj_summary'); if (d) { s = d; dsrc = 'private'; } } catch (e) {} }
 
-  const status = s.status || null;
-  const metric = s.metric || null;
-  const plan = Number(s.plan) || 0;
-  const fact = Number(s.fact) || 0;
-
-  const total = s.total != null ? s.total : (card.children_count || 0);
-  const done = s.done != null ? s.done : (card.children_done || 0);
+  const total = card.children_count || 0;
+  const done = card.children_done || 0;
   const pct = total ? Math.round((done / total) * 100) : 0;
-  const factPct = plan ? Math.round((fact / plan) * 100) : 0;
 
-  const silent = s.silent != null ? s.silent : daysAgo(card.comment_last_added_at || card.created);
-  const dueIso = s.due || card.due_date;
+  const silent = daysAgo(card.comment_last_added_at || card.created);
   const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
-  const due = dueIso ? `срок ${new Date(dueIso).toLocaleDateString('ru')}` : 'срок не задан';
+  const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
-  // Есть статус (мост данных сработал) → хиро ведёт статусом и красится по нему.
-  // Нет статуса → хиро ведёт ГОТОВНОСТЬЮ (это всегда доступно), без ложного
-  // «статус не задан».
-  let heroHtml;
-  if (status) {
-    const statusCls = STATUS_CLASS[status] || 'ok';
-    heroHtml = `
-    <div class="hero ${statusCls}">
-      <span class="hero-dot"></span>
-      <div class="hero-main">
-        <div class="hero-status">${esc(status)}</div>
-        <div class="hero-sub">${stale}${due}</div>
-      </div>
-      <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
-    </div>`;
-  } else {
-    const doneCls = pct >= 100 ? 'ok' : 'ok';
-    const lead = total ? `${done} из ${total} задач сделано` : 'Проект';
-    heroHtml = `
-    <div class="hero ${doneCls}">
-      <span class="hero-dot"></span>
-      <div class="hero-main">
-        <div class="hero-status">${esc(lead)}</div>
-        <div class="hero-sub">${stale}${due}</div>
-      </div>
-      <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
-    </div>`;
-  }
-
-  const statusCls = STATUS_CLASS[status] || '';
-  heroHtml += `
-    ${metric ? `
-    <div class="card">
-      <div class="card-title">💰 Метрика · план / факт</div>
-      <div class="metric">
-        <div class="metric-label">${esc(metric)}</div>
-        <div class="grow">${bar(factPct, statusCls)}</div>
-        <div class="metric-num"><b>${fact}</b> из ${plan}</div>
-      </div>
-    </div>` : ''}
-    <div class="muted" style="font-size:10px;opacity:.5;padding:2px">data:${dsrc}${status ? '' : ' · нет свойств'}</div>`;
-
-  // сразу рисуем базовый слой + место под расширенный
-  root.innerHTML = heroHtml + '<div id="ext"><div class="muted" style="padding:4px 2px">Подгружаю задачи…</div></div>';
+  // Базовый хиро: ведёт готовностью (статус пока недоступен без API).
+  const baseTitle = total ? `${done} из ${total} задач сделано` : 'Проект';
+  root.innerHTML =
+    `<div id="hero">${heroHtml('ok', baseTitle, `${stale}${due}`, pct)}</div>` +
+    `<div id="ext"><div class="muted" style="padding:4px 2px">Подгружаю задачи…</div></div>`;
   iframe.fitSize('#root');
 
   const ext = await extendedBlocks(card);
-  const extEl = document.getElementById('ext');
-  if (ext != null) {
-    extEl.innerHTML = ext;
+  if (ext) {
+    // API доступен — повышаем хиро до статусного и показываем блоки
+    if (ext.status) {
+      const cls = STATUS_CLASS[ext.status] || 'ok';
+      document.getElementById('hero').innerHTML = heroHtml(cls, ext.status, `${stale}${due}`, pct);
+    }
+    document.getElementById('ext').innerHTML = ext.metricHtml + ext.blocks;
   } else {
-    // API недоступен — не пустуем, показываем что есть, и честно про остальное
-    extEl.innerHTML = `
+    // API недоступен — не пустуем: показываем готовность и честно про остальное
+    document.getElementById('ext').innerHTML = `
       <div class="card">
         <div class="card-title">✅ Задачи по командам <span class="cnt">${done} / ${total}</span></div>
         <div class="metric">
           <div class="metric-label">Готовность</div>
-          <div class="grow">${bar(pct, statusCls)}</div>
+          <div class="grow">${bar(pct)}</div>
           <div class="metric-num"><b>${done}</b> из ${total}</div>
         </div>
-        <div class="load-foot">Разбивка по командам, загрузка и история статусов появятся,
+        <div class="load-foot">Статус, метрика, разбивка по командам, загрузка и история появятся,
         когда у аддона заработает доступ к API (сейчас Kaiten отдаёт токен, который API не принимает).</div>
       </div>`;
   }

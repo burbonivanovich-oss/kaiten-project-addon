@@ -12,19 +12,9 @@
  * иначе он замусорит доски команд.
  */
 
-// Временная отладка: шлём вехи в родительское окно, чтобы их было видно
-// из консоли хоста (удалить после стабилизации).
-var DBG = [];
-function dbg(step, extra) {
-  DBG.push(step + (extra ? ' ' + JSON.stringify(extra) : ''));
-  try { window.parent.postMessage({ type: 'ADDON_DEBUG', step, extra: extra || null }, '*'); } catch (e) {}
-}
-var _n = 0;
-var _t = setInterval(function () {
-  if (++_n > 15) return clearInterval(_t);
-  try { window.parent.postMessage({ type: 'ADDON_DEBUG_BULK', log: DBG.slice() }, '*'); } catch (e) {}
-}, 2000);
-dbg('client.js loaded', { hasAddon: typeof Addon !== 'undefined' });
+// dbg — no-op (отладка снята после стабилизации). Оставлен пустым, чтобы не
+// вычищать вызовы по всему файлу; ничего не шлёт и не логирует.
+function dbg() {}
 
 // Дефолты для ЭТОЙ инсталляции Kaiten. Каждое значение можно переопределить
 // в настройках аддона на пространстве (страница settings.html) — тогда
@@ -46,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=21';
+const PAGE_V = 'v=22';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -130,27 +120,8 @@ var initResult = Addon.initialize({
     if (!isProject(cfg, card)) return [];
 
     const { done, total, pct } = progress(card);
-    // getCardProperties работает ТОЛЬКО здесь (в card_body_section — «Unknown
-    // subject», в iframe секции значений тоже нет). Поэтому здесь читаем все
-    // нужные свойства ОДНИМ запросом и кладём в card-хранилище: секция потом
-    // возьмёт их через getData, без OAuth и без API.
     const silent = silentDays(card);
-    let status = null;
-    try {
-      const props = await ctx.getCardProperties();
-      status = readVal(props, card, F.status);
-      const summary = {
-        status: status,
-        metric: readVal(props, card, 'Что меряем'),
-        plan: readVal(props, card, 'План'),
-        fact: readVal(props, card, 'Факт'),
-        done: done, total: total, pct: pct,
-        due: card.due_date || null,
-        silent: silent,
-      };
-      try { await ctx.setData('card', 'shared', 'proj_summary', summary); } catch (se) { dbg('setData shared err ' + (se && se.message)); }
-      try { await ctx.setData('card', 'private', 'proj_summary', summary); } catch (se) { dbg('setData private err ' + (se && se.message)); }
-    } catch (pe) { dbg('badges props err ' + (pe && pe.message)); }
+    const status = await propValue(ctx, card, F.status);
 
     const badges = [];
     if (status) badges.push({ text: status, color: STATUS_COLOR[status] || '#888780' });
