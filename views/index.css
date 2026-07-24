@@ -164,39 +164,52 @@ body {
 .gate .primary { min-width: 200px; }
 .gate-msg { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 18px; }
 
+/* ── поля ввода: заполненные, с мягким фокус-кольцом ── */
+input, textarea, select {
+  width: 100%; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px;
+  background: var(--surface-2); color: var(--fg); font: inherit; resize: vertical;
+  transition: border-color .12s, box-shadow .12s, background .12s;
+}
+textarea { min-height: 60px; line-height: 1.45; }
+input::placeholder, textarea::placeholder { color: var(--muted); }
+input:hover, textarea:hover, select:hover { border-color: var(--muted); }
+input:focus, textarea:focus, select:focus {
+  outline: none; border-color: var(--accent); background: var(--surface);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 18%, transparent);
+}
+label { font-weight: 500; }
+
 /* ── форма нового проекта ── */
-.form { display: flex; flex-direction: column; gap: 12px; }
-.form > label { display: flex; flex-direction: column; gap: 5px; font-size: 13px; color: var(--fg-2); }
-.form .hint { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.4; }
-.form .row { margin-top: 2px; }
-.form #go { width: 100%; padding: 11px; border: 0; border-radius: 8px;
+.form { display: flex; flex-direction: column; gap: 14px; }
+.form > label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--fg-2); }
+.form .hint { font-size: 12px; color: var(--muted); margin: 0; line-height: 1.4; font-weight: 400; }
+.form .row { margin-top: 4px; }
+.form #go { width: 100%; padding: 12px; border: 0; border-radius: 9px;
             background: var(--accent); color: #fff; font: inherit; font-weight: 600;
-            font-size: 14.5px; cursor: pointer; }
+            font-size: 14.5px; cursor: pointer; transition: filter .12s; }
 .form #go:hover { filter: brightness(1.08); }
 .form #go:disabled { opacity: .5; cursor: default; filter: none; }
 
-/* ── форма отчёта ── */
+/* ── форма отчёта / поля с подписью сверху ── */
 #report { padding: 2px; }
-.field { margin-bottom: 14px; }
-.field label { display: block; margin-bottom: 5px; font-size: 13px; color: var(--fg-2); }
-input, textarea {
-  width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
-  background: transparent; color: var(--fg); font: inherit; resize: vertical;
-}
-input::placeholder, textarea::placeholder { color: var(--muted); }
-input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+.form-lead { font-size: 13.5px; color: var(--fg-2); margin: 0 0 16px; line-height: 1.45; }
+.field { margin-bottom: 15px; }
+.field label { display: block; margin-bottom: 6px; font-size: 13px; color: var(--fg-2); font-weight: 500; }
+
+/* ── светофор в отчёте: сегментед-контрол ── */
 .statuses { display: flex; gap: 8px; }
-.st { flex: 1; padding: 12px 6px; border: 1px solid var(--line); border-radius: 8px;
-      background: transparent; color: var(--fg-2); font: inherit; font-size: 14px;
-      cursor: pointer; transition: border-color .12s, background .12s; }
+.st { flex: 1; padding: 12px 6px; border: 1px solid var(--line); border-radius: 9px;
+      background: var(--surface-2); color: var(--fg-2); font: inherit; font-size: 14px;
+      cursor: pointer; transition: border-color .12s, background .12s, box-shadow .12s; }
 .st:hover { border-color: var(--muted); }
-.st.on { color: var(--fg); font-weight: 500; }
-.st.on.ok   { border-color: var(--ok);   background: var(--ok-soft); }
-.st.on.warn { border-color: var(--warn); background: var(--warn-soft); }
-.st.on.bad  { border-color: var(--bad);  background: var(--bad-soft); }
-select { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
-         background: transparent; color: var(--fg); font: inherit; }
-select:focus { outline: none; border-color: var(--accent); }
+.st.on { color: var(--fg); font-weight: 600; }
+.st.on.ok   { border-color: var(--ok);   background: var(--ok-soft);   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 15%, transparent); }
+.st.on.warn { border-color: var(--warn); background: var(--warn-soft); box-shadow: 0 0 0 3px color-mix(in srgb, var(--warn) 15%, transparent); }
+.st.on.bad  { border-color: var(--bad);  background: var(--bad-soft);  box-shadow: 0 0 0 3px color-mix(in srgb, var(--bad) 15%, transparent); }
+
+/* ── экран настроек: поля-id моноширинными, сгруппированы ── */
+#settings > p { font-size: 13px; margin: 0 0 16px; }
+#settings .field input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
 
 /* ── сводка цели/направления ── */
 .chip { font-size: 13px; color: var(--fg-2); }
