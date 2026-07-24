@@ -138,6 +138,17 @@ async function render() {
   let defs = [];
   try { defs = await iframe.getCardProperties(); } catch (e) { /* останемся без имён полей */ }
 
+  // ВРЕМЕННО: диагностика формы данных из SDK — выводим видимо в секцию
+  var __dbg = '';
+  try {
+    __dbg = 'defs=' + (defs || []).length +
+      ' | defNames=' + JSON.stringify((defs || []).map((p) => p.name).slice(0, 10)) +
+      ' | hasProps=' + !!card.properties +
+      ' | propKeys=' + JSON.stringify(Object.keys(card.properties || {}).slice(0, 10)) +
+      ' | statusRaw=' + JSON.stringify((card.properties || {})[
+        'id_' + (((defs || []).find((p) => p.name === 'Статус') || {}).id)]);
+  } catch (e) { __dbg = 'dbg err ' + (e && e.message); }
+
   const status = readProp(defs, card, F.status);
   const metric = readProp(defs, card, F.metric);
   const plan = Number(readProp(defs, card, F.plan)) || 0;
@@ -155,6 +166,7 @@ async function render() {
   const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
   const heroHtml = `
+    <div class="muted" style="font-size:11px;word-break:break-all;padding:4px 2px;margin-bottom:6px">${esc(__dbg)}</div>
     <div class="hero ${heroCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
