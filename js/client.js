@@ -46,7 +46,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=18';
+const PAGE_V = 'v=19';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -155,26 +155,12 @@ var initResult = Addon.initialize({
       const card = await ctx.getCard();
       const cfg = await getCfg(ctx);
       if (isProject(cfg, card)) {
-        // getCard() ВНУТРИ секции отдаёт карточку без .properties, поэтому
-        // статус/метрику/план/факт считаем здесь (в коннекторе свойства есть)
-        // и передаём в URL — хиро секции рисуется из них, без OAuth.
-        // ВАЖНО: свойства берём ОДНИМ запросом (4 отдельных round-trip'а
-        // раньше подвешивали секцию — Kaiten отваливал её по таймауту).
-        const p = [];
-        try {
-          const props = await ctx.getCardProperties();
-          const val = (nm) => readVal(props, card, nm);
-          const st = val('Статус'), mt = val('Что меряем'), pl = val('План'), fc = val('Факт');
-          const sd = silentDays(card);
-          if (st != null) p.push('st=' + encodeURIComponent(st));
-          if (mt != null) p.push('mt=' + encodeURIComponent(mt));
-          if (pl != null) p.push('pl=' + encodeURIComponent(pl));
-          if (fc != null) p.push('fc=' + encodeURIComponent(fc));
-          if (sd != null) p.push('sd=' + sd);
-        } catch (e) { dbg('body params err ' + (e && e.message)); }
+        // Простая секция: НИКАКИХ getCardProperties здесь — в card_body_section
+        // он бросает «Unknown subject» и роняет секцию. Статус/метрику читает
+        // сам iframe секции (project.js) своими SDK-методами.
         return [{
           title: 'Ход проекта',
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html', p.join('&'))), height: 460 },
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html')), height: 460 },
         }];
       }
       if (isGoal(cfg, card) || isDirection(cfg, card)) {

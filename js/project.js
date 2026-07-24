@@ -140,9 +140,19 @@ async function render() {
   const card = await iframe.getCard();
   const q = new URLSearchParams(location.search);
   let defs = [];
+  let defsErr = null;
   if (!q.has('st') && !q.has('mt')) {
-    try { defs = await iframe.getCardProperties(); } catch (e) { /* без имён полей */ }
+    try { defs = await iframe.getCardProperties(); } catch (e) { defsErr = (e && e.message) || String(e); }
   }
+  // диагностика в родителя (ловим слушателем на странице Kaiten)
+  try {
+    window.parent.postMessage({ type: 'ADDON_DEBUG', step: 'section-dbg', extra: {
+      hasCardProps: !!card.properties,
+      cardPropKeys: Object.keys(card.properties || {}).slice(0, 8),
+      defsLen: (defs || []).length, defsErr,
+      cardKeys: Object.keys(card || {}).slice(0, 20),
+    } }, '*');
+  } catch (e) {}
   const fromQ = (k, fb) => (q.has(k) ? q.get(k) : fb);
 
   const status = fromQ('st', null) || readProp(defs, card, F.status);
