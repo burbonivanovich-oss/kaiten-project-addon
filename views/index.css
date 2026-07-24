@@ -187,6 +187,24 @@ select:focus { outline: none; border-color: var(--accent); }
 .convert-done { font-size: 14px; line-height: 1.5; }
 .convert-done a { color: var(--accent); }
 
+/* ── сигнал/предупреждение ── */
+.warn-box { background: color-mix(in srgb, var(--warn) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent);
+  border-radius: 8px; padding: 10px 12px; font-size: 13px; color: var(--fg-2);
+  line-height: 1.45; margin-bottom: 14px; }
+
+/* ── загрузка команды (план) ── */
+.load-head { margin: 20px 0 8px; font-weight: 600; font-size: 13px;
+  letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+.load-row { display: flex; align-items: center; gap: 10px; padding: 6px 0;
+  border-top: 1px solid var(--line); font-size: 13px; }
+.load-row:first-of-type { border-top: 0; }
+.load-name { flex: 1; color: var(--fg-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.load-bar { width: 120px; flex: none; }
+.load-num { width: 74px; text-align: right; color: var(--fg-2); flex: none;
+  font-variant-numeric: tabular-nums; }
+.load-foot { margin-top: 8px; font-size: 12px; color: var(--muted); }
+
 .actions { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
 .primary { padding: 8px 18px; border: 0; border-radius: 6px; background: var(--accent);
            color: #fff; font: inherit; font-weight: 500; cursor: pointer; }

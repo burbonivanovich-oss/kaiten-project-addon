@@ -12,7 +12,7 @@ const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 const root = document.getElementById('root');
 
-const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт' };
+const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт', estimate: 'Оценка, чел-дн' };
 const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Критичные проблемы': 'bad' };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -89,6 +89,23 @@ async function render() {
     (byBoard[key] = byBoard[key] || []).push(c);
   }
 
+  // п.4 — плановая загрузка: оценка задачи (чел-дн) идёт на её исполнителей
+  // (участников кроме создателя-owner). Kaiten считает загрузку только по явным
+  // часам на Timeline; здесь — прогноз по проекту на этапе планирования.
+  const estDef = defs.find((p) => p.name === F.estimate);
+  const load = {};
+  let totalPlan = 0;
+  for (const t of children) {
+    const est = estDef ? Number((t.properties || {})[`id_${estDef.id}`]) || 0 : 0;
+    if (!est) continue;
+    totalPlan += est;
+    const assignees = (t.members || []).filter((m) => m.id !== t.owner_id);
+    const targets = assignees.length ? assignees : (t.members || []).slice(0, 1);
+    for (const m of targets) load[m.full_name] = (load[m.full_name] || 0) + est;
+  }
+  const loadRows = Object.entries(load).sort((a, b) => b[1] - a[1]);
+  const maxLoad = loadRows.length ? loadRows[0][1] : 0;
+
   const history = comments.filter((c) => /Статус|Отчёт/i.test(c.text || '')).slice(-6).reverse();
   const last = comments.length ? comments[comments.length - 1] : null;
   const silent = daysAgo(last && last.created);
@@ -127,6 +144,17 @@ async function render() {
               ${c.due_date ? `<span class="due">${new Date(c.due_date).toLocaleDateString('ru')}</span>` : ''}
             </div>`).join('')}
         </div>`).join('')}
+
+    ${loadRows.length ? `
+    <div class="load-head">Загрузка команды (план) · ${totalPlan} чел-дн</div>
+    ${loadRows.map(([name, days]) => `
+      <div class="load-row">
+        <span class="load-name">${esc(name)}</span>
+        <span class="load-bar">${bar(maxLoad ? Math.round(days / maxLoad * 100) : 0)}</span>
+        <span class="load-num">${days} чел-дн</span>
+      </div>`).join('')}
+    <div class="load-foot">оценка задачи идёт на её исполнителей; заполняется полем «Оценка, чел-дн»</div>
+    ` : ''}
 
     <div class="section">История статусов</div>
     ${history.length === 0

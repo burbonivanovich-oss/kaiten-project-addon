@@ -40,7 +40,20 @@ async function ensureAuth() {
   root.innerHTML = '<div class="muted">Загружаю…</div>';
 }
 
-let card = null, boards = [], nameById = {};
+let card = null, boards = [], nameById = {}, parentProj = null;
+
+const dstr = (iso) => iso ? new Date(iso).toLocaleDateString('ru') : '—';
+
+/* п.5 — задача не может длиться дольше проекта. Нативная автоматизация сравнить
+ * дату задачи с датой родителя не умеет (нет такого условия), поэтому проверяем
+ * здесь: если срок задачи позже срока проекта-родителя — показываем сигнал. */
+function deadlineWarn() {
+  if (!parentProj || !parentProj.due_date || !card.due_date) return '';
+  if (new Date(card.due_date) <= new Date(parentProj.due_date)) return '';
+  return `<div class="warn-box">⚠️ <b>Срок задачи выходит за проект.</b>
+    Задача до ${dstr(card.due_date)}, а проект «${esc(parentProj.title)}» — до ${dstr(parentProj.due_date)}.
+    Задача не может длиться дольше проекта — сдвиньте срок.</div>`;
+}
 
 async function loadRoute() {
   try {
@@ -83,6 +96,7 @@ function renderChain(route) {
   }
 
   root.innerHTML = `
+    ${deadlineWarn()}
     <div class="chain">${steps}</div>
     <div class="route-action" id="act">${action}</div>
     <div class="route-msg muted" id="msg"></div>
@@ -116,6 +130,7 @@ function renderEditor(route) {
     .map((b) => `<option value="${b.id}">${esc(b.title)}</option>`).join('');
 
   root.innerHTML = `
+    ${deadlineWarn()}
     <div class="route-label">Цепочка функцзон (по порядку):</div>
     <div class="chain-edit" id="list">${chainEditRows(draft)}</div>
     <div class="route-add">
@@ -170,6 +185,11 @@ function chainEditRows(draft) {
     boards = ((await api.get(`/api/v1/spaces/${FUNC_SPACE}/boards`)) || [])
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     boards.forEach((b) => (nameById[b.id] = b.title));
+    // проект-родитель — для проверки срока (п.5)
+    try {
+      const parents = await api.get(`/api/v1/cards/${card.id}/parents`);
+      parentProj = (parents || []).find((p) => p.type_id === 696186) || null;
+    } catch (e) { /* нет родителя — ок */ }
     const route = await loadRoute();
     if (route.length) renderChain(route); else renderEditor(route);
   } catch (e) {
