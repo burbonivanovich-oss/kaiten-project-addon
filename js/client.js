@@ -46,7 +46,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=16';
+const PAGE_V = 'v=17';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -150,9 +150,23 @@ var initResult = Addon.initialize({
       const card = await ctx.getCard();
       const cfg = await getCfg(ctx);
       if (isProject(cfg, card)) {
+        // getCard() ВНУТРИ секции отдаёт карточку без .properties, поэтому
+        // статус/метрику/план/факт считаем здесь (в коннекторе свойства есть)
+        // и передаём в URL — хиро секции рисуется из них, без OAuth.
+        const p = [];
+        const st = await propValue(ctx, card, 'Статус');
+        const mt = await propValue(ctx, card, 'Что меряем');
+        const pl = await propValue(ctx, card, 'План');
+        const fc = await propValue(ctx, card, 'Факт');
+        const sd = silentDays(card);
+        if (st != null) p.push('st=' + encodeURIComponent(st));
+        if (mt != null) p.push('mt=' + encodeURIComponent(mt));
+        if (pl != null) p.push('pl=' + encodeURIComponent(pl));
+        if (fc != null) p.push('fc=' + encodeURIComponent(fc));
+        if (sd != null) p.push('sd=' + sd);
         return [{
           title: 'Ход проекта',
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html')), height: 460 },
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html', p.join('&'))), height: 460 },
         }];
       }
       if (isGoal(cfg, card) || isDirection(cfg, card)) {

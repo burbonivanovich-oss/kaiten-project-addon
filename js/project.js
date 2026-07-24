@@ -134,39 +134,34 @@ async function extendedBlocks(card) {
 
 async function render() {
   // Базовый слой — без OAuth.
+  // getCard() в секции отдаёт карточку БЕЗ .properties, поэтому статус/метрику/
+  // план/факт коннектор (где свойства доступны) передаёт нам параметрами в URL.
+  // Если их нет — пробуем всё же прочитать из getCard()/getCardProperties().
   const card = await iframe.getCard();
+  const q = new URLSearchParams(location.search);
   let defs = [];
-  try { defs = await iframe.getCardProperties(); } catch (e) { /* останемся без имён полей */ }
+  if (!q.has('st') && !q.has('mt')) {
+    try { defs = await iframe.getCardProperties(); } catch (e) { /* без имён полей */ }
+  }
+  const fromQ = (k, fb) => (q.has(k) ? q.get(k) : fb);
 
-  // ВРЕМЕННО: диагностика формы данных из SDK — выводим видимо в секцию
-  var __dbg = '';
-  try {
-    __dbg = 'defs=' + (defs || []).length +
-      ' | defNames=' + JSON.stringify((defs || []).map((p) => p.name).slice(0, 10)) +
-      ' | hasProps=' + !!card.properties +
-      ' | propKeys=' + JSON.stringify(Object.keys(card.properties || {}).slice(0, 10)) +
-      ' | statusRaw=' + JSON.stringify((card.properties || {})[
-        'id_' + (((defs || []).find((p) => p.name === 'Статус') || {}).id)]);
-  } catch (e) { __dbg = 'dbg err ' + (e && e.message); }
-
-  const status = readProp(defs, card, F.status);
-  const metric = readProp(defs, card, F.metric);
-  const plan = Number(readProp(defs, card, F.plan)) || 0;
-  const fact = Number(readProp(defs, card, F.fact)) || 0;
+  const status = fromQ('st', null) || readProp(defs, card, F.status);
+  const metric = fromQ('mt', null) || readProp(defs, card, F.metric);
+  const plan = Number(fromQ('pl', null) != null ? fromQ('pl', null) : readProp(defs, card, F.plan)) || 0;
+  const fact = Number(fromQ('fc', null) != null ? fromQ('fc', null) : readProp(defs, card, F.fact)) || 0;
 
   const total = card.children_count || 0;
   const done = card.children_done || 0;
   const pct = total ? Math.round((done / total) * 100) : 0;
   const factPct = plan ? Math.round((fact / plan) * 100) : 0;
 
-  const silent = daysAgo(card.comment_last_added_at || card.created);
+  const silent = q.has('sd') ? Number(q.get('sd')) : daysAgo(card.comment_last_added_at || card.created);
   const statusCls = STATUS_CLASS[status] || '';
   const heroCls = statusCls || 'ok';
   const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
   const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
   const heroHtml = `
-    <div class="muted" style="font-size:11px;word-break:break-all;padding:4px 2px;margin-bottom:6px">${esc(__dbg)}</div>
     <div class="hero ${heroCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
