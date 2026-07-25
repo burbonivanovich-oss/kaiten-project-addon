@@ -58,13 +58,19 @@ function readProp(defs, card, name) {
 
 const daysAgo = (iso) => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
 
+const bar = (pct, cls) =>
+  `<div class="bar"><div class="bar-fill ${cls || ''}" style="width:${Math.min(pct, 100)}%"></div></div>`;
+
 async function render() {
   await ensureAuth();
   const card = await iframe.getCard();
 
-  const [defs, children] = await Promise.all([
+  // getCard() в секции отдаёт карточку без .properties — саму цель тянем из API,
+  // иначе не узнать её план по метрике (а без него не посчитать движение к цели).
+  const [defs, children, self] = await Promise.all([
     api.get('/api/v1/company/custom-properties?limit=200'),
     api.get(`/api/v1/cards/${card.id}/children`),
+    api.get(`/api/v1/cards/${card.id}`),
   ]);
 
   const live = (children || []).filter((c) => c.condition === 1);
@@ -93,21 +99,50 @@ async function render() {
     (ORDER[a.cls] - ORDER[b.cls]) || ((b.plan || 0) - (a.plan || 0)));
 
   const n = { ok: 0, warn: 0, bad: 0, '': 0 };
-  let planSum = 0, factSum = 0;
-  rows.forEach((r) => { n[r.cls]++; planSum += r.plan || 0; factSum += r.fact || 0; });
+  let planSum = 0, factSum = 0, doneSum = 0, totalSum = 0;
+  rows.forEach((r) => {
+    n[r.cls]++; planSum += r.plan || 0; factSum += r.fact || 0;
+    doneSum += r.done || 0; totalSum += r.total || 0;
+  });
 
-  const hero = `
-    <div class="hero ${n.bad ? 'bad' : n.warn ? 'warn' : 'ok'}">
+  // ДВИЖЕНИЕ К ЦЕЛИ — две РАЗНЫЕ вещи, которые старый процесс путал:
+  //  • работы — сколько задач проектов закрыто (делаем ли мы дело);
+  //  • метрика — сколько из плана цели уже набрано фактом (двигает ли это цель).
+  const goalMetric = readProp(defs, self, F.metric);
+  const goalPlan = Number(readProp(defs, self, F.plan)) || 0;
+  const workPct = totalSum ? Math.round((doneSum / totalSum) * 100) : 0;
+  const metricPct = goalPlan ? Math.round((factSum / goalPlan) * 100) : null;
+
+  const heroCls = n.bad ? 'bad' : n.warn ? 'warn' : 'ok';
+  root.innerHTML = `
+    <div class="hero ${heroCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
-        <div class="hero-status">${rows.length} ${rows.length === 1 ? 'проект' : 'проектов'}</div>
+        <div class="hero-status">${rows.length} ${rows.length === 1 ? 'проект' : 'проектов'} · работы ${workPct}%</div>
         <div class="hero-sub">🟢 ${n.ok} · 🟡 ${n.warn} · 🔴 ${n.bad}${n[''] ? ` · ⚪ ${n['']} без статуса` : ''}</div>
       </div>
-      <div class="hero-pct"><b>${fmt(factSum)}</b><span>факт / ${fmt(planSum)}</span></div>
-    </div>`;
+      ${metricPct != null
+        ? `<div class="hero-pct"><b>${metricPct}%</b><span>цели набрано</span></div>`
+        : `<div class="hero-pct"><b>${workPct}%</b><span>работы</span></div>`}
+    </div>
 
-  root.innerHTML = `
-    ${hero}
+    <div class="card">
+      <div class="card-title">🎯 Движение к цели</div>
+      <div class="metric">
+        <div class="metric-label">Работы</div>
+        <div class="grow">${bar(workPct, heroCls)}</div>
+        <div class="metric-num"><b>${doneSum}</b> из ${totalSum} задач</div>
+      </div>
+      ${goalPlan ? `
+      <div class="metric">
+        <div class="metric-label">${esc(goalMetric || 'Метрика')}</div>
+        <div class="grow">${bar(metricPct || 0, metricPct >= 100 ? 'ok' : heroCls)}</div>
+        <div class="metric-num"><b>${fmt(factSum)}</b> из ${fmt(goalPlan)}</div>
+      </div>` : `
+      <div class="load-foot">У цели не заполнен «План» по метрике — вклад проектов в цифрах не посчитать.</div>`}
+      ${goalPlan ? `<div class="load-foot">работы = закрытые задачи проектов · метрика = факт проектов к плану цели</div>` : ''}
+    </div>
+
     <div class="card">
       <div class="card-title">Проекты <span class="cnt">прогресс · деньги</span></div>
       ${rows.map((r) => `
