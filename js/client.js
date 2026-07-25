@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=23';
+const PAGE_V = 'v=24';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -197,6 +197,15 @@ var initResult = Addon.initialize({
     // Формы открываем ЦЕНТРИРОВАННОЙ МОДАЛКОЙ (openDialog), а не openPopup:
     // попап прибит к кнопке, имеет фиксированную высоту и режет контент.
     if (proj) {
+      // Главная кнопка проекта: задача заводится СРАЗУ на доску команды и в тот же
+      // момент привязывается к проекту — связь нельзя забыть, а значит не рассыплются
+      // % готовности, «задачи по командам» и загрузка.
+      buttons.push({
+        text: '➕ Задача команде',
+        callback: (c) => c.openDialog({
+          title: 'Задача команде', url: pageUrl('new-task.html'), width: 'sm',
+        }),
+      });
       buttons.push({
         text: '📝 Отчёт за 2 недели',
         callback: (c) => c.openDialog({

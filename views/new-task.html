@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Задача команде</title>
+  <link rel="stylesheet" href="./index.css?v=8" />
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+</head>
+<body>
+  <form id="f" class="form modal-page">
+    <p class="hint" id="lead">Задача появится на доске команды и сразу привяжется к этому проекту.</p>
+    <label>Что нужно сделать *
+      <input id="title" required placeholder="Например: Лендинг под рост CR2" />
+    </label>
+    <label>Команда *
+      <select id="board" required></select>
+    </label>
+    <label>Срок <span class="hint" id="due-hint"></span>
+      <input id="due" type="date" />
+    </label>
+    <label>Оценка, чел-дн <span class="hint">— для расчёта загрузки</span>
+      <input id="est" type="number" min="0" step="0.5" placeholder="напр. 2" />
+    </label>
+    <div class="row">
+      <button type="submit" id="go">Создать задачу</button>
+    </div>
+    <div id="msg" class="hint"></div>
+  </form>
+  <script src="../js/new-task.js?v=1"></script>
+</body>
+</html>
