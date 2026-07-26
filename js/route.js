@@ -17,6 +17,26 @@ const DEFAULT_FUNC_SPACE = 819167; // «3 · Работа команд» — д�
 const PROJECT_TYPE = 'Проект';     // тип ищем ПО ИМЕНИ: id в каждой компании свои
 const ROUTE_KEY = 'route_boards';  // ключ хранилища маршрута на карточке
 
+/* Доски команд лежат и в самом пространстве, и в его подпространствах
+   (Контент → Копирайт/Редактор/Техпис, ИМ → SEO/Платное). Один запрос по
+   /spaces/{id}/boards видит только верхний ярус — маршрут терял ровно те
+   команды, где идёт работа. Обходим на уровень вниз, как в new-task.js. */
+async function loadFuncBoards(spaceId) {
+  const spaces = await api.get('/api/v1/spaces');
+  const root = (spaces || []).find((s) => s.id === spaceId);
+  if (!root) return [];
+  const targets = [root].concat(
+    (spaces || []).filter((s) => s.parent_entity_uid && s.parent_entity_uid === root.uid));
+  const out = [];
+  for (const s of targets) {
+    try {
+      const bs = await api.get(`/api/v1/spaces/${s.id}/boards`);
+      (bs || []).forEach((b) => out.push(b));
+    } catch (e) { /* нет доступа — пропускаем */ }
+  }
+  return out;
+}
+
 async function funcSpaceId() {
   try {
     const all = await iframe.getSettings();
@@ -193,7 +213,7 @@ function chainEditRows(draft) {
   try {
     await ensureAuth();
     card = await iframe.getCard();
-    boards = ((await api.get(`/api/v1/spaces/${await funcSpaceId()}/boards`)) || [])
+    boards = (await loadFuncBoards(await funcSpaceId()))
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     boards.forEach((b) => (nameById[b.id] = b.title));
     // проект-родитель — для проверки срока (п.5)
