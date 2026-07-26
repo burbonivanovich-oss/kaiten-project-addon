@@ -8,7 +8,7 @@
 const iframe = Addon.iframe();
 
 const FIELDS = ['project_type_ids', 'goal_type_ids', 'direction_type_ids',
-  'new_project_board_id', 'silent_days'];
+  'new_project_board_id', 'functions_space_id', 'silent_days'];
 const $ = (id) => document.getElementById(id);
 const msg = (t) => { $('msg').textContent = t || ''; };
 
@@ -35,6 +35,7 @@ async function init() {
       if (ids.length) out[k] = ids;
     }
     if ($('new_project_board_id').value) out.new_project_board_id = Number($('new_project_board_id').value);
+    if ($('functions_space_id').value) out.functions_space_id = Number($('functions_space_id').value);
     if ($('silent_days').value) out.silent_days = Number($('silent_days').value);
     try {
       await iframe.setSettings(out);

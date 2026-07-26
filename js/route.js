@@ -12,8 +12,19 @@ const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 const root = document.getElementById('root');
 
-const FUNC_SPACE = 814151;         // «3 · Работа команд» — доски-функцзоны
+// Пространство функцзон этой инсталляции; перебивается настройкой functions_space_id.
+const DEFAULT_FUNC_SPACE = 819167; // «3 · Работа команд» — доски-функцзоны
+const PROJECT_TYPE = 'Проект';     // тип ищем ПО ИМЕНИ: id в каждой компании свои
 const ROUTE_KEY = 'route_boards';  // ключ хранилища маршрута на карточке
+
+async function funcSpaceId() {
+  try {
+    const all = await iframe.getSettings();
+    const s = (Array.isArray(all) ? all[0] : all) || {};
+    if (s.functions_space_id) return Number(s.functions_space_id);
+  } catch (e) { /* дефолт */ }
+  return DEFAULT_FUNC_SPACE;
+}
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -182,13 +193,17 @@ function chainEditRows(draft) {
   try {
     await ensureAuth();
     card = await iframe.getCard();
-    boards = ((await api.get(`/api/v1/spaces/${FUNC_SPACE}/boards`)) || [])
+    boards = ((await api.get(`/api/v1/spaces/${await funcSpaceId()}/boards`)) || [])
       .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
     boards.forEach((b) => (nameById[b.id] = b.title));
     // проект-родитель — для проверки срока (п.5)
     try {
+      const types = await api.get('/api/v1/card-types');
+      const projType = (types || []).find((t) => t.name === PROJECT_TYPE);
       const parents = await api.get(`/api/v1/cards/${card.id}/parents`);
-      parentProj = (parents || []).find((p) => p.type_id === 696186) || null;
+      parentProj = projType
+        ? (parents || []).find((p) => p.type_id === projType.id) || null
+        : null;
     } catch (e) { /* нет родителя — ок */ }
     const route = await loadRoute();
     if (route.length) renderChain(route); else renderEditor(route);

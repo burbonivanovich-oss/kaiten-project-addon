@@ -9,10 +9,9 @@ const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 const root = document.getElementById('root');
 
-const F = { status: 'Статус', plan: 'План', fact: 'Факт' };
+// metric — имя метрики цели: без него подпись строки всегда была бы «Метрика».
+const F = { status: 'Статус', plan: 'План', fact: 'Факт', metric: 'Что меряем' };
 const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Критичные проблемы': 'bad' };
-const ORDER = { bad: 0, warn: 1, ok: 2, '': 3 };
-const SILENT_DAYS = 14;
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -56,8 +55,6 @@ function readProp(defs, card, name) {
   return raw;
 }
 
-const daysAgo = (iso) => iso ? Math.floor((Date.now() - new Date(iso).getTime()) / 86400000) : null;
-
 const bar = (pct, cls) =>
   `<div class="bar"><div class="bar-fill ${cls || ''}" style="width:${Math.min(pct, 100)}%"></div></div>`;
 
@@ -81,28 +78,14 @@ async function render() {
     return;
   }
 
-  const rows = live.map((c) => {
-    const status = readProp(defs, c, F.status);
-    const cls = STATUS_CLASS[status] || '';
-    const total = c.children_count || 0;
-    const done = c.children_done || 0;
-    const silent = daysAgo(c.comment_last_added_at || c.created);
-    return {
-      c, status, cls,
-      pct: total ? Math.round((done / total) * 100) : 0,
-      done, total,
-      plan: Number(readProp(defs, c, F.plan)) || null,
-      fact: Number(readProp(defs, c, F.fact)) || null,
-      silent: (c.state !== 3 && silent != null && silent >= SILENT_DAYS) ? silent : null,
-    };
-  }).sort((a, b) =>
-    (ORDER[a.cls] - ORDER[b.cls]) || ((b.plan || 0) - (a.plan || 0)));
-
   const n = { ok: 0, warn: 0, bad: 0, '': 0 };
-  let planSum = 0, factSum = 0, doneSum = 0, totalSum = 0;
-  rows.forEach((r) => {
-    n[r.cls]++; planSum += r.plan || 0; factSum += r.fact || 0;
-    doneSum += r.done || 0; totalSum += r.total || 0;
+  let factSum = 0, doneSum = 0, totalSum = 0;
+  live.forEach((c) => {
+    const cls = STATUS_CLASS[readProp(defs, c, F.status)] || '';
+    n[cls]++;
+    factSum  += Number(readProp(defs, c, F.fact)) || 0;
+    doneSum  += c.children_done  || 0;
+    totalSum += c.children_count || 0;
   });
 
   // ДВИЖЕНИЕ К ЦЕЛИ — две РАЗНЫЕ вещи, которые старый процесс путал:
@@ -118,7 +101,7 @@ async function render() {
     <div class="hero ${heroCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
-        <div class="hero-status">${rows.length} ${rows.length === 1 ? 'проект' : 'проектов'} · работы ${workPct}%</div>
+        <div class="hero-status">${live.length} ${live.length === 1 ? 'проект' : 'проектов'} · работы ${workPct}%</div>
         <div class="hero-sub">🟢 ${n.ok} · 🟡 ${n.warn} · 🔴 ${n.bad}${n[''] ? ` · ⚪ ${n['']} без статуса` : ''}</div>
       </div>
       ${metricPct != null
@@ -143,20 +126,6 @@ async function render() {
       ${goalPlan ? `<div class="load-foot">работы = закрытые задачи проектов · метрика = факт проектов к плану цели</div>` : ''}
     </div>
 
-    <div class="card">
-      <div class="card-title">Проекты <span class="cnt">прогресс · деньги</span></div>
-      ${rows.map((r) => `
-        <div class="g-row">
-          <span class="dot ${r.cls}"></span>
-          <span class="g-title">${esc(r.c.title)}</span>
-          ${r.silent ? `<span class="g-silent">🔇 ${r.silent} дн</span>` : ''}
-          <span class="g-bar"><span class="bar"><span class="bar-fill ${r.cls}"
-            style="display:block;width:${Math.min(r.pct, 100)}%"></span></span></span>
-          <span class="g-num">${r.total ? `${r.pct}%` : '—'}</span>
-          <span class="g-money">${fmt(r.plan)}${r.fact != null ? ` / ${fmt(r.fact)}` : ''}</span>
-        </div>`).join('')}
-      <div class="muted g-foot">прогресс = закрытые задачи · деньги = План / Факт</div>
-    </div>
   `;
   iframe.fitSize('#root');
 }

@@ -17,7 +17,7 @@ const GOAL_TYPE = 'Цель';
 const PROJECT_TYPE = 'Проект';
 // Доска «Проекты» этой инсталляции: новые проекты падают в портфель, с какой бы
 // карточки ни открыли форму. Перебивается настройкой аддона new_project_board_id.
-const DEFAULT_BOARD_ID = 1833089;
+const DEFAULT_BOARD_ID = 1841475;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
