@@ -12,7 +12,7 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { plan: 'План' };
+const F = { plan: 'План', direction: 'Направление' };
 const GOAL_TYPE = 'Цель';
 const PROJECT_TYPE = 'Проект';
 // Доска «Проекты» этой инсталляции: новые проекты падают в портфель, с какой бы
@@ -90,6 +90,31 @@ async function init() {
     }
   }
 
+  /* НАПРАВЛЕНИЕ — единственное место, где оно вообще заводится.
+     Это не карточка и не пространство, а значение селекта на проекте: спрашиваем
+     здесь, потому что «потом проставим» на практике означает «никогда». */
+  const dirSel = document.getElementById('direction');
+  let dirDef = null;
+  try {
+    const props = await api.get('/api/v1/company/custom-properties?limit=200');
+    dirDef = (props || []).find((p) => p.name === F.direction);
+    if (dirDef) {
+      const values = await api.get(
+        `/api/v1/company/custom-properties/${dirDef.id}/select-values`);
+      (values || []).forEach((v) => {
+        const o = document.createElement('option');
+        o.value = v.id;
+        o.textContent = v.value.length > 60 ? v.value.slice(0, 57) + '…' : v.value;
+        dirSel.appendChild(o);
+      });
+    }
+  } catch (e) { /* не достали — ниже снимем обязательность */ }
+  // Списка нет — не держим человека в форме заложником пустого селекта.
+  if (!dirDef || dirSel.options.length <= 1) {
+    dirSel.required = false;
+    dirSel.closest('label').style.display = 'none';
+  }
+
   document.getElementById('f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const btn = document.getElementById('go');
@@ -120,7 +145,11 @@ async function init() {
       const due = document.getElementById('due').value;
       if (due) body.due_date = `${due}T18:00:00.000Z`;
       const plan = document.getElementById('plan').value;
-      if (plan && planDef) body.properties = { [`id_${planDef.id}`]: Number(plan) };
+      const props2 = {};
+      if (plan && planDef) props2[`id_${planDef.id}`] = Number(plan);
+      // select пишется массивом id значений — не самим текстом
+      if (dirSel.value && dirDef) props2[`id_${dirDef.id}`] = [Number(dirSel.value)];
+      if (Object.keys(props2).length) body.properties = props2;
 
       const created = await api.post('/api/v1/cards', body);
 
