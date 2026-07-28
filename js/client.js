@@ -243,8 +243,14 @@ var initResult = Addon.initialize({
       });
     }
 
-    // Загруженность команды — доступна с любой проектной карточки
+    // Загруженность команды + дашборд — на проектных/целевых карточках
     if (proj || goal) {
+      buttons.push({
+        text: '📋 Дашборд команды',
+        callback: (c) => c.openDialog({
+          title: 'Дашборд команды', url: pageUrl('dashboard.html'), width: 'lg',
+        }),
+      });
       buttons.push({
         text: '📊 Загруженность команды',
         callback: (c) => c.openDialog({

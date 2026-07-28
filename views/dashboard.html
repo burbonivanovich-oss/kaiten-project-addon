@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Дашборд команды</title>
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:      #f4f5f7;
+      --surface: #ffffff;
+      --border:  #e4e6ea;
+      --text:    #1a1d23;
+      --muted:   #6b7280;
+      --accent:  #3b5bdb;
+      --bar-bg:  #e8ecf8;
+      --r: 10px;
+      --ok:   #1D9E75;
+      --warn: #EF9F27;
+      --bad:  #E24B4A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg:#0f1117; --surface:#1a1d26; --border:#2a2d38; --text:#e8eaf0; --muted:#8b92a5; --bar-bg:#252a3a; }
+    }
+    :root[data-theme="light"] { --bg:#f4f5f7; --surface:#fff; --border:#e4e6ea; --text:#1a1d23; --muted:#6b7280; --bar-bg:#e8ecf8; }
+    :root[data-theme="dark"]  { --bg:#0f1117; --surface:#1a1d26; --border:#2a2d38; --text:#e8eaf0; --muted:#8b92a5; --bar-bg:#252a3a; }
+
+    body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 13px; }
+
+    #shell { max-width: 960px; margin: 0 auto; padding: 18px 16px 32px; }
+
+    header { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; }
+    header h1 { font-size: 17px; font-weight: 700; flex: 1; }
+    .updated { font-size: 11px; color: var(--muted); }
+
+    .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+    @media (max-width: 640px) { .grid { grid-template-columns: 1fr; } }
+
+    .panel { background: var(--surface); border: 1px solid var(--border); border-radius: var(--r); padding: 14px 16px; }
+    .panel-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 12px; }
+
+    /* ── Проекты ── */
+    .proj { padding: 9px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .proj:last-child { border-bottom: none; }
+    .proj:hover .proj-name { text-decoration: underline; color: var(--accent); }
+    .proj-top { display: flex; align-items: center; gap: 7px; margin-bottom: 5px; }
+    .proj-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    .proj-name { font-weight: 600; font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .proj-status { font-size: 11px; font-weight: 500; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+    .proj-bar-wrap { display: flex; align-items: center; gap: 8px; }
+    .proj-bar { flex: 1; height: 5px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; }
+    .proj-bar-fill { height: 100%; border-radius: 3px; }
+    .proj-pct { font-size: 11px; color: var(--muted); width: 28px; text-align: right; }
+
+    /* ── Дедлайны ── */
+    .dl-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--border); cursor: pointer; }
+    .dl-row:last-child { border-bottom: none; }
+    .dl-row:hover .dl-name { text-decoration: underline; color: var(--accent); }
+    .dl-badge { font-size: 11px; font-weight: 700; padding: 2px 7px; border-radius: 6px; white-space: nowrap; min-width: 50px; text-align: center; }
+    .dl-badge.ok   { background: color-mix(in srgb, var(--ok) 12%, transparent); color: var(--ok); }
+    .dl-badge.warn { background: color-mix(in srgb, var(--warn) 15%, transparent); color: var(--warn); }
+    .dl-badge.bad  { background: color-mix(in srgb, var(--bad) 12%, transparent); color: var(--bad); }
+    .dl-name { flex: 1; font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .dl-date { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+    /* ── Загруженность ── */
+    .wl-row { padding: 7px 0; border-bottom: 1px solid var(--border); }
+    .wl-row:last-child { border-bottom: none; }
+    .wl-top { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; }
+    .wl-name { flex: 1; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .wl-pct  { font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .wl-bar-wrap { height: 5px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; }
+    .wl-bar { height: 100%; border-radius: 3px; }
+
+    .empty { color: var(--muted); font-size: 13px; text-align: center; padding: 24px 0; }
+    .spinner { color: var(--muted); font-size: 12px; padding: 20px 0; text-align: center; }
+
+    .gate { max-width: 360px; margin: 60px auto; background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 28px; text-align: center; }
+    .gate-icon { font-size: 36px; margin-bottom: 10px; }
+    .gate-title { font-size: 16px; font-weight: 700; margin-bottom: 6px; }
+    .gate-text { color: var(--muted); font-size: 13px; margin-bottom: 18px; line-height: 1.5; }
+    .btn-primary { background: var(--accent); color: #fff; border: none; border-radius: 8px; padding: 10px 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
+    .btn-primary:hover { opacity: .9; }
+    .gate-msg { color: var(--muted); font-size: 12px; margin-top: 10px; }
+  </style>
+</head>
+<body>
+  <div id="shell">
+    <header>
+      <h1>📊 Дашборд команды</h1>
+      <span class="updated" id="updated"></span>
+    </header>
+    <div class="grid" id="grid">
+      <div class="panel" id="p-projects"><div class="panel-title">Проекты</div><div class="spinner">Загружаю…</div></div>
+      <div class="panel" id="p-deadlines"><div class="panel-title">Дедлайны</div><div class="spinner"></div></div>
+      <div class="panel" id="p-workload"><div class="panel-title">Загруженность</div><div class="spinner"></div></div>
+    </div>
+  </div>
+  <script src="../js/dashboard.js?v=1"></script>
+</body>
+</html>
