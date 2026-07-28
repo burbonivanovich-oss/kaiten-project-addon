@@ -1,35 +1,26 @@
-/* ФОРМА «НОВЫЙ ПРОЕКТ» — одна отправка вместо ручного заведения.
+/* ФОРМА «НОВЫЙ ПРОЕКТ»
  *
- * Создаёт карточку типа «Проект» на той же доске, где живёт карточка,
- * из которой открыли попап (колонка типа queue — «Идея»), проставляет
- * План и срок, привязывает к выбранной цели. Всё остальное — статус,
- * дата первого отчёта, паспорт — доделает автоматизация «🆕 Новый проект».
- *
- * Страница живёт в попапе, поэтому Addon.iframe(), а не Addon.initialize.
- * Поля и типы ищем ПО ИМЕНИ — id в каждой компании свои.
+ * Создаёт: пространство (дочернее к портфелю) → 2 доски → карточку-проект
+ * в «Обзор проектов». Поля формы: название, срок, ответственный.
  */
 
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { plan: 'План', direction: 'Направление' };
-const GOAL_TYPE = 'Цель';
-const PROJECT_TYPE = 'Проект';
-// Доска «Проекты» этой инсталляции: новые проекты падают в портфель, с какой бы
-// карточки ни открыли форму. Перебивается настройкой аддона new_project_board_id.
-const DEFAULT_BOARD_ID = 1841475;
+const OVERVIEW_BOARD = 1843681;
+const OVERVIEW_COL   = 6369010;
+const OVERVIEW_LANE  = 2317387;
+const PORTFOLIO_UID  = '5a8985b0-7234-4802-9916-7dee731929f7';
+const PROJECT_TYPE   = 699509;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
-// Модалка и попап закрываются разными командами — пробуем обе.
 function closeSelf() {
-  try { iframe.closeDialog(); } catch (e) { try { iframe.closePopup(); } catch (e2) {} }
+  try { iframe.closeDialog(); } catch (e) { try { iframe.closePopup(); } catch (_) {} }
 }
 
-/* Разрешение спрашиваем ТОЛЬКО по клику — авто-authorize режет блокировщик попапов.
-   Пока токена нет, форма спрятана и виден только гейт. */
 async function ensureAuth() {
-  try { await api.getAccessToken(); return; } catch (e) { /* токена ещё нет */ }
+  try { await api.getAccessToken(); return; } catch (e) {}
   const form = document.getElementById('f');
   form.style.display = 'none';
   await new Promise((resolve) => {
@@ -38,12 +29,12 @@ async function ensureAuth() {
     gate.innerHTML = `
       <div class="gate-icon">🔐</div>
       <div class="gate-title">Нужно разовое разрешение</div>
-      <p class="gate-text">Форма создаёт карточку от вашего имени, поэтому Kaiten
-      один раз спросит, доверяете ли вы аддону. Дальше — без вопросов.</p>
+      <p class="gate-text">Форма создаёт проект от вашего имени — Kaiten
+      один раз спросит, доверяете ли вы аддону. Дальше без вопросов.</p>
       <button id="auth-btn" type="button" class="primary">Разрешить доступ</button>
       <div class="gate-msg" id="auth-msg"></div>`;
     document.body.prepend(gate);
-    iframe.fitSize('.gate');   // без селектора модалка не растёт — меряем сам гейт
+    iframe.fitSize('.gate');
     gate.querySelector('#auth-btn').addEventListener('click', async () => {
       gate.querySelector('#auth-msg').textContent = 'Жду подтверждения в окне Kaiten…';
       try { await api.authorize(); gate.remove(); resolve(); }
@@ -56,117 +47,90 @@ async function ensureAuth() {
   form.style.display = '';
 }
 
+// Переименовываем колонки доски задач под нужную структуру
+async function setupTasksBoard(boardId) {
+  const COLUMNS = [
+    { title: 'Бэклог'      },
+    { title: 'В работе',    wip_limit: 3 },
+    { title: 'На проверке', wip_limit: 5 },
+    { title: 'Готово'      },
+  ];
+  const existing = await api.get(`/api/v1/boards/${boardId}/columns`);
+  for (let i = 0; i < COLUMNS.length; i++) {
+    const col = COLUMNS[i];
+    const body = col.wip_limit ? { title: col.title, wip_limit: col.wip_limit } : { title: col.title };
+    if (i < existing.length) {
+      try {
+        await api.patch(`/api/v1/boards/${boardId}/columns/${existing[i].id}`, body);
+      } catch (_) {
+        await api.put(`/api/v1/boards/${boardId}/columns/${existing[i].id}`, body);
+      }
+    } else {
+      await api.post(`/api/v1/boards/${boardId}/columns`, body);
+    }
+  }
+}
+
 async function init() {
   await ensureAuth();
-  const card = await iframe.getCard();
 
-  // кнопка «➕ Проект к этой цели» передаёт цель в query (?goal=id)
-  const presetGoal = new URLSearchParams(location.search).get('goal');
-
-  // цели для селекта: живые карточки типа «Цель» (их немного)
-  const goalSel = document.getElementById('goal');
+  // Заполняем список сотрудников
+  const sel = document.getElementById('responsible');
   try {
-    const types = await api.get('/api/v1/card-types');
-    const goalType = (types || []).find((t) => t.name === GOAL_TYPE);
-    if (goalType) {
-      const goals = await api.get(
-        `/api/v1/cards?type_id=${goalType.id}&condition=1&archived=false&limit=100`);
-      (goals || []).forEach((g) => {
+    const users = await api.get('/api/v1/company/users?limit=300');
+    (users || [])
+      .filter((u) => u.activated && !u.deactivated)
+      .sort((a, b) => a.full_name.localeCompare(b.full_name, 'ru'))
+      .forEach((u) => {
         const o = document.createElement('option');
-        o.value = g.id;
-        o.textContent = g.title.length > 60 ? g.title.slice(0, 57) + '…' : g.title;
-        goalSel.appendChild(o);
+        o.value = u.id;
+        o.textContent = u.full_name;
+        sel.appendChild(o);
       });
-    }
-  } catch (e) { /* без целей форма всё равно работает */ }
-  if (presetGoal) {
-    goalSel.value = presetGoal;
-    if (goalSel.value !== presetGoal) {  // цели нет в списке — добавим болванку
-      const o = document.createElement('option');
-      o.value = presetGoal;
-      o.textContent = `Карточка #${presetGoal}`;
-      goalSel.appendChild(o);
-      goalSel.value = presetGoal;
-    }
-  }
-
-  /* НАПРАВЛЕНИЕ — единственное место, где оно вообще заводится.
-     Это не карточка и не пространство, а значение селекта на проекте: спрашиваем
-     здесь, потому что «потом проставим» на практике означает «никогда». */
-  const dirSel = document.getElementById('direction');
-  let dirDef = null;
-  try {
-    const props = await api.get('/api/v1/company/custom-properties?limit=200');
-    dirDef = (props || []).find((p) => p.name === F.direction);
-    if (dirDef) {
-      const values = await api.get(
-        `/api/v1/company/custom-properties/${dirDef.id}/select-values`);
-      (values || []).forEach((v) => {
-        const o = document.createElement('option');
-        o.value = v.id;
-        o.textContent = v.value.length > 60 ? v.value.slice(0, 57) + '…' : v.value;
-        dirSel.appendChild(o);
-      });
-    }
-  } catch (e) { /* не достали — ниже снимем обязательность */ }
-  // Списка нет — не держим человека в форме заложником пустого селекта.
-  if (!dirDef || dirSel.options.length <= 1) {
-    dirSel.required = false;
-    dirSel.closest('label').style.display = 'none';
-  }
+  } catch (_) {}
 
   document.getElementById('f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
     const btn = document.getElementById('go');
     btn.disabled = true;
-    msg('Создаю…');
+
+    const title  = document.getElementById('title').value.trim();
+    const due    = document.getElementById('due').value;
+    const respId = document.getElementById('responsible').value;
+
     try {
-      const types = await api.get('/api/v1/card-types');
-      const projType = (types || []).find((t) => t.name === PROJECT_TYPE);
-      // доска: настройка аддона → дефолт-портфель → доска карточки.
-      // Без этого проект, заведённый с карточки Цели, уехал бы на доску целей.
-      let boardId = DEFAULT_BOARD_ID || card.board_id;
-      try {
-        const all = await iframe.getSettings();
-        const s = (Array.isArray(all) ? all[0] : all) || {};
-        if (s.new_project_board_id) boardId = s.new_project_board_id;
-      } catch (e) { /* настроек нет — ок */ }
-      const cols = await api.get(`/api/v1/boards/${boardId}/columns`);
-      const queue = (cols || []).find((c) => c.type === 1) || cols[0];
-      const props = await api.get('/api/v1/company/custom-properties?limit=200');
-      const planDef = (props || []).find((p) => p.name === F.plan);
+      msg('Создаю пространство…');
+      const space = await api.post('/api/v1/spaces', {
+        title,
+        parent_entity_uid: PORTFOLIO_UID,
+      });
 
-      const body = {
-        board_id: boardId,
-        column_id: queue.id,
-        title: document.getElementById('title').value.trim(),
-        type_id: projType ? projType.id : undefined,
+      msg('Создаю доски…');
+      await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
+      const tasksBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Задачи проекта' });
+      await setupTasksBoard(tasksBoard.id);
+
+      msg('Добавляю в портфель…');
+      const cardBody = {
+        board_id:  OVERVIEW_BOARD,
+        column_id: OVERVIEW_COL,
+        lane_id:   OVERVIEW_LANE,
+        title,
+        type_id:   PROJECT_TYPE,
       };
-      const due = document.getElementById('due').value;
-      if (due) body.due_date = `${due}T18:00:00.000Z`;
-      const plan = document.getElementById('plan').value;
-      const props2 = {};
-      if (plan && planDef) props2[`id_${planDef.id}`] = Number(plan);
-      // select пишется массивом id значений — не самим текстом
-      if (dirSel.value && dirDef) props2[`id_${dirDef.id}`] = [Number(dirSel.value)];
-      if (Object.keys(props2).length) body.properties = props2;
+      if (due)    cardBody.due_date = `${due}T18:00:00.000Z`;
+      if (respId) cardBody.members = [{ user_id: Number(respId), role_type: 'responsible' }];
+      const card = await api.post('/api/v1/cards', cardBody);
 
-      const created = await api.post('/api/v1/cards', body);
-
-      const goalId = goalSel.value;
-      if (goalId) await api.post(`/api/v1/cards/${goalId}/children`, { card_id: created.id });
-
-      msg(`✅ Проект #${created.id} создан. Каркас доедет автоматикой.`);
-      iframe.showSnackbar(`Проект «${created.title}» создан`, 'success');
-      setTimeout(closeSelf, 1200);
+      msg(`✅ Проект «${card.title}» создан.`);
+      iframe.showSnackbar(`Проект «${card.title}» создан`, 'success');
+      setTimeout(closeSelf, 1400);
     } catch (e) {
-      msg('⚠️ Не получилось: ' + (e && e.message ? e.message : e));
+      msg('⚠️ Ошибка: ' + (e && e.message ? e.message : JSON.stringify(e)));
       btn.disabled = false;
     }
   });
 
-  // Меряем ПОСЛЕ полной отрисовки (select уже наполнен опциями), иначе
-  // модалка получает высоту недостроенной формы и низ уходит под скролл.
   requestAnimationFrame(() => iframe.fitSize('#f'));
 }
 
