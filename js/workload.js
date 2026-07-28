@@ -3,12 +3,15 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-// Доски задач по проектам (id → название проекта)
+const KAITEN = 'https://artempdirect1.kaiten.ru';
+const MONTHLY_NORM = 160; // рабочих часов в месяц (8ч × 20 дней)
+
+// Доски задач: id → { название, id карточки-проекта в Обзор проектов }
 const TASK_BOARDS = {
-  1843480: 'Больше оплат',
-  1843621: 'Рост выручки Общепита',
-  1843623: 'Рост CR2',
-  1843625: 'Квиз на сайте',
+  1843480: { name: 'Больше оплат',          card_id: 67893925 },
+  1843621: { name: 'Рост выручки Общепита', card_id: 67893920 },
+  1843623: { name: 'Рост CR2',              card_id: 67893914 },
+  1843625: { name: 'Квиз на сайте',         card_id: 67893931 },
 };
 
 const STATUS_DOT = {
@@ -42,7 +45,7 @@ async function ensureAuth() {
 
 async function fetchTasks() {
   const tasks = [];
-  for (const [boardId, project] of Object.entries(TASK_BOARDS)) {
+  for (const [boardId, proj] of Object.entries(TASK_BOARDS)) {
     const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
     for (const c of cards || []) {
       const members = c.members || [];
@@ -53,7 +56,8 @@ async function fetchTasks() {
         for (const m of assignees) {
           tasks.push({
             title: c.title,
-            project,
+            project: proj.name,
+            project_card_id: proj.card_id,
             hours: c.estimate_workload || 0,
             person: m.full_name || '—',
             person_id: m.user_id,
@@ -61,7 +65,10 @@ async function fetchTasks() {
           });
         }
       } else {
-        tasks.push({ title: c.title, project, hours: c.estimate_workload || 0, person: '—', person_id: null, status: col });
+        tasks.push({
+          title: c.title, project: proj.name, project_card_id: proj.card_id,
+          hours: c.estimate_workload || 0, person: '—', person_id: null, status: col,
+        });
       }
     }
   }
@@ -72,10 +79,11 @@ function aggregate(tasks, groupKey) {
   const map = new Map();
   for (const t of tasks) {
     const key = t[groupKey];
-    if (!map.has(key)) map.set(key, { name: key, hours: 0, tasks: [] });
+    if (!map.has(key)) map.set(key, { name: key, hours: 0, tasks: [], card_id: t.project_card_id });
     const entry = map.get(key);
     entry.hours += t.hours;
     entry.tasks.push(t);
+    if (t.project_card_id && !entry.card_id) entry.card_id = t.project_card_id;
   }
   return [...map.values()].sort((a, b) => b.hours - a.hours);
 }
@@ -84,25 +92,62 @@ function dotClass(status) {
   return STATUS_DOT[status] || 'dot-backlog';
 }
 
-function renderRows(groups, labelKey, subLabelKey) {
-  const maxH = Math.max(...groups.map(g => g.hours), 1);
-  return groups.map((g, i) => {
-    const pct = Math.round((g.hours / maxH) * 100);
-    const taskRows = g.tasks
-      .sort((a, b) => b.hours - a.hours)
-      .map(t => `
-        <div class="task-item">
-          <span class="dot ${dotClass(t.status)}"></span>
-          <span class="task-title" title="${esc(t.title)}">${esc(t.title)}</span>
-          <span class="task-proj">${esc(t[subLabelKey])}</span>
-          <span class="task-hours">${t.hours > 0 ? t.hours + ' ч' : '—'}</span>
-        </div>`).join('');
+function normColor(pct) {
+  if (pct >= 100) return '#ef4444';
+  if (pct >= 80)  return '#f59e0b';
+  return 'var(--bar-fill)';
+}
+
+function renderPeople(groups) {
+  return groups.map(g => {
+    const normPct  = Math.min(Math.round((g.hours / MONTHLY_NORM) * 100), 100);
+    const overload = g.hours > MONTHLY_NORM;
+    const color    = normColor(Math.round((g.hours / MONTHLY_NORM) * 100));
+    const normLabel = g.name === '—'
+      ? `<span class="norm-label muted">${g.hours} ч</span>`
+      : `<span class="norm-label" style="color:${color}">${Math.round((g.hours/MONTHLY_NORM)*100)}% нормы</span>`;
+
+    const taskRows = g.tasks.sort((a, b) => b.hours - a.hours).map(t => `
+      <div class="task-item">
+        <span class="dot ${dotClass(t.status)}"></span>
+        <span class="task-title" title="${esc(t.title)}">${esc(t.title)}</span>
+        <span class="task-proj link" onclick="goToProject(${t.project_card_id})">${esc(t.project)}</span>
+        <span class="task-hours">${t.hours > 0 ? t.hours + ' ч' : '—'}</span>
+      </div>`).join('');
 
     return `
       <div class="row-card">
         <div class="row-head" onclick="toggle(this)">
-          <div class="row-name" title="${esc(g.name)}">${esc(g.name)}</div>
-          <div class="bar-wrap"><div class="bar-fill" style="width:${pct}%"></div></div>
+          <div class="row-name">${esc(g.name)}</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${normPct}%;background:${color}"></div></div>
+          <div class="row-meta">${normLabel} · <strong>${g.hours}</strong> ч · ${g.tasks.length} зад.</div>
+        </div>
+        <div class="task-list">${taskRows || '<div class="empty">Нет задач с оценкой</div>'}</div>
+      </div>`;
+  }).join('');
+}
+
+function renderProjects(groups) {
+  const maxH = Math.max(...groups.map(g => g.hours), 1);
+  return groups.map(g => {
+    const barPct = Math.round((g.hours / maxH) * 100);
+    const taskRows = g.tasks.sort((a, b) => b.hours - a.hours).map(t => `
+      <div class="task-item">
+        <span class="dot ${dotClass(t.status)}"></span>
+        <span class="task-title" title="${esc(t.title)}">${esc(t.title)}</span>
+        <span class="task-proj">${esc(t.person)}</span>
+        <span class="task-hours">${t.hours > 0 ? t.hours + ' ч' : '—'}</span>
+      </div>`).join('');
+
+    const nameHtml = g.card_id
+      ? `<div class="row-name link" onclick="goToProject(${g.card_id})">${esc(g.name)} ↗</div>`
+      : `<div class="row-name">${esc(g.name)}</div>`;
+
+    return `
+      <div class="row-card">
+        <div class="row-head" onclick="toggle(this)">
+          ${nameHtml}
+          <div class="bar-wrap"><div class="bar-fill" style="width:${barPct}%"></div></div>
           <div class="row-meta"><strong>${g.hours}</strong> ч · ${g.tasks.length} зад.</div>
         </div>
         <div class="task-list">${taskRows || '<div class="empty">Нет задач с оценкой</div>'}</div>
@@ -116,6 +161,11 @@ function esc(s) {
 
 window.toggle = function(head) {
   head.nextElementSibling.classList.toggle('open');
+};
+
+window.goToProject = function(cardId) {
+  if (!cardId) return;
+  window.open(`${KAITEN}/card/${cardId}`, '_blank');
 };
 
 async function init() {
@@ -134,8 +184,8 @@ async function init() {
     <div class="stat"><div class="stat-val">${people}</div><div class="stat-lbl">сотрудников</div></div>
     <div class="stat"><div class="stat-val">${byProject.length}</div><div class="stat-lbl">проектов</div></div>`;
 
-  document.getElementById('panel-people').innerHTML   = renderRows(byPerson,  'person',  'project');
-  document.getElementById('panel-projects').innerHTML = renderRows(byProject, 'project', 'person');
+  document.getElementById('panel-people').innerHTML   = renderPeople(byPerson);
+  document.getElementById('panel-projects').innerHTML = renderProjects(byProject);
 
   const now = new Date().toLocaleString('ru', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   document.getElementById('updated').textContent = `обновлено ${now}`;
