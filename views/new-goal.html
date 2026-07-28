@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Новая цель</title>
+  <link rel="stylesheet" href="./index.css?v=8" />
+  <script src="https://files.kaiten.ru/web-sdk/v1.min.js"></script>
+</head>
+<body>
+  <form id="f" class="form modal-page">
+    <label>Название цели *
+      <input id="title" required placeholder="Например: Вырасти до 10 000 подписчиков" />
+    </label>
+    <label>Срок
+      <input id="due" type="date" />
+    </label>
+    <label>Ответственный
+      <select id="responsible"><option value="">— не назначен —</option></select>
+    </label>
+    <label>Плановое значение <span class="hint">— цифра, которую хотим достичь</span>
+      <input id="plan" type="number" min="0" placeholder="например: 10000" />
+    </label>
+    <label>Текущее значение <span class="hint">— точка отсчёта сейчас</span>
+      <input id="fact" type="number" min="0" placeholder="например: 3200" />
+    </label>
+    <div class="row">
+      <button type="submit" id="go">Поставить цель</button>
+    </div>
+    <div id="msg" class="hint"></div>
+  </form>
+  <script src="../js/new-goal.js?v=1"></script>
+</body>
+</html>

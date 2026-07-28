@@ -253,6 +253,16 @@ var initResult = Addon.initialize({
       });
     }
 
+    // Поставить цель — на любой карточке доски «Цели» (включая шаблон «НАЧНИ ОТСЮДА»)
+    if (card.board_id === 1841482) {
+      buttons.push({
+        text: '➕ Поставить цель',
+        callback: (c) => c.openDialog({
+          title: 'Новая цель', url: pageUrl('new-goal.html'), width: 'sm',
+        }),
+      });
+    }
+
     dbg('buttons result ' + buttons.length);
     return buttons;
     } catch (e) { dbg('buttons ERROR ' + (e && e.message)); return []; }
