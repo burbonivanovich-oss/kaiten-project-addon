@@ -243,6 +243,16 @@ var initResult = Addon.initialize({
       });
     }
 
+    // Загруженность команды — доступна с любой проектной карточки
+    if (proj || goal) {
+      buttons.push({
+        text: '📊 Загруженность команды',
+        callback: (c) => c.openDialog({
+          title: 'Загруженность команды', url: pageUrl('workload.html'), width: 'lg',
+        }),
+      });
+    }
+
     dbg('buttons result ' + buttons.length);
     return buttons;
     } catch (e) { dbg('buttons ERROR ' + (e && e.message)); return []; }
