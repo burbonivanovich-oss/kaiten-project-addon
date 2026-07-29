@@ -14,10 +14,20 @@ const STATUS = {
 };
 
 const TASK_BOARDS = {
+  // Проектные доски
   1843480: { name: 'Больше оплат',          card_id: 67893925 },
   1843621: { name: 'Рост выручки Общепита', card_id: 67893920 },
   1843623: { name: 'Рост CR2',              card_id: 67893914 },
   1843625: { name: 'Квиз на сайте',         card_id: 67893931 },
+  // Доски команд
+  1841937: { name: 'ПМ',                   card_id: null },
+  1841454: { name: 'Копирайт',             card_id: null },
+  1841467: { name: 'Редактор',             card_id: null },
+  1841941: { name: 'Техпис',               card_id: null },
+  1841936: { name: 'Дизайн',              card_id: null },
+  1841938: { name: 'Интернет-маркетинг',  card_id: null },
+  1841939: { name: 'SEO',                  card_id: null },
+  1841940: { name: 'Платное продвижение',  card_id: null },
 };
 
 let token = localStorage.getItem(TOKEN_KEY);

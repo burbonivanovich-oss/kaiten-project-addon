@@ -117,8 +117,25 @@ var initResult = Addon.initialize({
     try {
     const card = await ctx.getCard();
     const cfg = await getCfg(ctx);
+
+    // ЗАДАЧА — показываем привязку к проекту и оценку
+    if (isTask(cfg, card)) {
+      const badges = [];
+      if (card.parent_id) badges.push({ text: '📁 Проект', color: '#3b5bdb' });
+      if (card.estimate_workload) badges.push({ text: card.estimate_workload + ' ч' });
+      return badges;
+    }
+
+    // ЦЕЛЬ — прогресс вложенных проектов
+    if (isGoal(cfg, card)) {
+      const { done, total, pct } = progress(card);
+      if (!total) return [];
+      return [{ text: `${done}/${total} проектов · ${pct}%` }];
+    }
+
     if (!isProject(cfg, card)) return [];
 
+    // ПРОЕКТ — статус, прогресс, «молчим»
     const { done, total, pct } = progress(card);
     const silent = silentDays(card);
     const status = await propValue(ctx, card, F.status);
@@ -157,13 +174,6 @@ var initResult = Addon.initialize({
         return [{
           title: isDirection(cfg, card) ? 'Сводка направления' : 'Проекты этой цели',
           content: { type: 'iframe', url: ctx.signUrl(pageUrl('goal.html')), height: 420 },
-        }];
-      }
-      if (isTask(cfg, card)) {
-        // маршрут функцзон: кнопки-передачи задачи между досками команд
-        return [{
-          title: 'Маршрут функцзон',
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('route.html')), height: 300 },
         }];
       }
       if (isHypothesis(cfg, card)) {
@@ -243,8 +253,8 @@ var initResult = Addon.initialize({
       });
     }
 
-    // Загруженность команды + дашборд — на проектных/целевых карточках
-    if (proj || goal) {
+    // Загруженность команды + дашборд — на проектных/целевых/направленческих карточках
+    if (proj || goal || dir) {
       buttons.push({
         text: '📋 Дашборд команды',
         callback: (c) => c.openDialog({

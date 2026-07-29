@@ -15,6 +15,9 @@
     <label>Команда *
       <select id="board" required></select>
     </label>
+    <label>Кому <span class="hint">— необязательно, команда сама распределит</span>
+      <select id="responsible"><option value="">— не назначен —</option></select>
+    </label>
     <label>Срок <span class="hint" id="due-hint"></span>
       <input id="due" type="date" />
     </label>
@@ -26,6 +29,6 @@
     </div>
     <div id="msg" class="hint"></div>
   </form>
-  <script src="../js/new-task.js?v=1"></script>
+  <script src="../js/new-task.js?v=2"></script>
 </body>
 </html>

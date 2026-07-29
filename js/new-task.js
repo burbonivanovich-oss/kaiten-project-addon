@@ -68,7 +68,7 @@ async function loadTeamBoards(spaceId) {
   for (const s of targets) {
     try {
       const boards = await api.get(`/api/v1/spaces/${s.id}/boards`);
-      if (boards && boards.length) groups.push({ space: s.title, boards });
+      if (boards && boards.length) groups.push({ space: s.title, spaceId: s.id, boards });
     } catch (e) { /* пространство без доступа — пропускаем */ }
   }
   return groups;
@@ -103,7 +103,12 @@ async function init() {
   } catch (e) { /* дефолт */ }
 
   const sel = document.getElementById('board');
+  const respSel = document.getElementById('responsible');
   const groups = await loadTeamBoards(cfgSpace);
+
+  // board_id → space_id для подгрузки участников команды
+  const boardToSpace = {};
+
   if (!groups.length) {
     sel.innerHTML = '<option value="">— досок команд не найдено —</option>';
   } else {
@@ -115,10 +120,33 @@ async function init() {
         o.value = b.id;
         o.textContent = b.title;
         og.appendChild(o);
+        boardToSpace[b.id] = g.spaceId;
       }
       sel.appendChild(og);
     }
   }
+
+  // При смене команды — подгружаем участников этого пространства
+  sel.addEventListener('change', async () => {
+    const spId = boardToSpace[sel.value];
+    respSel.innerHTML = '<option value="">— загружаю… —</option>';
+    if (!spId) { respSel.innerHTML = '<option value="">— не назначен —</option>'; return; }
+    try {
+      const members = await api.get(`/api/v1/spaces/${spId}/members`);
+      respSel.innerHTML = '<option value="">— не назначен —</option>';
+      (members || [])
+        .filter(u => u.activated !== false)
+        .sort((a, b) => (a.full_name || '').localeCompare(b.full_name || '', 'ru'))
+        .forEach(u => {
+          const o = document.createElement('option');
+          o.value = u.id;
+          o.textContent = u.full_name || u.username;
+          respSel.appendChild(o);
+        });
+    } catch (e) {
+      respSel.innerHTML = '<option value="">— не удалось загрузить —</option>';
+    }
+  });
 
   document.getElementById('f').addEventListener('submit', async (ev) => {
     ev.preventDefault();
@@ -147,6 +175,8 @@ async function init() {
         type_id: taskType ? taskType.id : undefined,
       };
       if (due) body.due_date = `${due}T18:00:00.000Z`;
+      const respId = respSel.value;
+      if (respId) body.members = [{ user_id: Number(respId), role_type: 'responsible' }];
 
       const est = document.getElementById('est').value;
       if (est) {
