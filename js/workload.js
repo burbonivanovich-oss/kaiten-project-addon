@@ -3,8 +3,10 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const KAITEN = 'https://artempdirect1.kaiten.ru';
-const MONTHLY_NORM = 160; // рабочих часов в месяц (8ч × 20 дней)
+const KAITEN         = 'https://artempdirect1.kaiten.ru';
+const OVERVIEW_BOARD = 1843681;
+const OVERVIEW_SPACE = 820245;
+const MONTHLY_NORM   = 160;
 
 // Доски задач: id → { название, id карточки-проекта в Обзор проектов }
 const TASK_BOARDS = {
@@ -175,7 +177,7 @@ window.toggle = function(head) {
 
 window.goToProject = function(cardId) {
   if (!cardId) return;
-  window.open(`${KAITEN}/card/${cardId}`, '_blank');
+  window.open(`${KAITEN}/space/${OVERVIEW_SPACE}/${OVERVIEW_BOARD}/card/${cardId}`, '_blank');
 };
 
 async function init() {

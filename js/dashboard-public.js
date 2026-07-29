@@ -2,10 +2,14 @@
  * Токен хранится в localStorage; страница доступна по прямому URL / Embed-блоку.
  */
 
-const KAITEN       = 'https://artempdirect1.kaiten.ru';
-const TOKEN_KEY    = 'kaiten_api_token';
+const KAITEN         = 'https://artempdirect1.kaiten.ru';
+const TOKEN_KEY      = 'kaiten_api_token';
 const OVERVIEW_BOARD = 1843681;
+const OVERVIEW_SPACE = 820245;
 const MONTHLY_NORM   = 160;
+
+const cardUrl = (cardId, boardId, spaceId) =>
+  `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
 
 const STATUS = {
   18948771: { label: 'В плане',            color: '#1D9E75' },
@@ -100,7 +104,7 @@ function renderProjects(projects) {
     const sc  = p.status?.color || '#8b92a5';
     const sl  = p.status?.label || '—';
     return `
-      <div class="proj" onclick="window.open('${KAITEN}/card/${p.id}','_blank')">
+      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
         <div class="proj-top">
           <div class="proj-dot" style="background:${sc}"></div>
           <div class="proj-name" title="${esc(p.title)}">${esc(p.title)}</div>
@@ -133,7 +137,7 @@ function renderDeadlines(projects) {
     else                  { cls = 'ok';   badge = `${p.days} дн`; }
     const dateStr = new Date(p.due).toLocaleDateString('ru', { day:'numeric', month:'short' });
     return `
-      <div class="dl-row" onclick="window.open('${KAITEN}/card/${p.id}','_blank')">
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
         <div class="dl-badge ${cls}">${badge}</div>
         <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
         <div class="dl-date">${dateStr}</div>

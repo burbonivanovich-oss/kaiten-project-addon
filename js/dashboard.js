@@ -3,9 +3,13 @@
 const iframe = Addon.iframe();
 const api    = iframe.getApiClient();
 
-const KAITEN        = 'https://artempdirect1.kaiten.ru';
+const KAITEN         = 'https://artempdirect1.kaiten.ru';
 const OVERVIEW_BOARD = 1843681;
+const OVERVIEW_SPACE = 820245;   // пространство «2 · Портфель проектов»
 const MONTHLY_NORM   = 160;
+
+const cardUrl = (cardId, boardId, spaceId) =>
+  `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
 
 // Статус: id значения → метка + цвет
 const STATUS = {
@@ -116,7 +120,7 @@ function renderProjects(projects) {
     const slbl = p.status?.label || '—';
     const bg   = sc + '1a'; // 10% opacity
     return `
-      <div class="proj" onclick="window.open('${KAITEN}/card/${p.id}','_blank')">
+      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
         <div class="proj-top">
           <div class="proj-dot" style="background:${sc}"></div>
           <div class="proj-name" title="${esc(p.title)}">${esc(p.title)}</div>
@@ -157,7 +161,7 @@ function renderDeadlines(projects) {
     }
     const dateStr = new Date(p.due).toLocaleDateString('ru', { day:'numeric', month:'short' });
     return `
-      <div class="dl-row" onclick="window.open('${KAITEN}/card/${p.id}','_blank')">
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
         <div class="dl-badge ${cls}">${badge}</div>
         <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
         <div class="dl-date">${dateStr}</div>
