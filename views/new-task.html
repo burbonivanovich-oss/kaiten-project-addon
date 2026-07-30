@@ -22,14 +22,14 @@
     <label>Срок <span class="hint" id="due-hint"></span>
       <input id="due" type="date" />
     </label>
-    <label>Оценка, чел-дн <span class="hint">— для расчёта загрузки</span>
-      <input id="est" type="number" min="0" step="0.5" placeholder="напр. 2" />
+    <label>Оценка, чел-дн *
+      <input id="est" type="number" min="0.5" step="0.5" value="4" required />
     </label>
     <div class="row">
       <button type="submit" id="go">Создать задачу</button>
     </div>
     <div id="msg" class="hint"></div>
   </form>
-  <script src="../js/new-task.js?v=3"></script>
+  <script src="../js/new-task.js?v=4"></script>
 </body>
 </html>
