@@ -126,13 +126,21 @@ async function init() {
     }
   }
 
-  // При смене команды — подгружаем участников этого пространства
+  // При смене команды — загружаем участников и считаем загрузку параллельно
   sel.addEventListener('change', async () => {
-    const spId = boardToSpace[sel.value];
-    respSel.innerHTML = '<option value="">— загружаю… —</option>';
+    const spId    = boardToSpace[sel.value];
+    const boardId = sel.value;
+    const loadEl  = document.getElementById('team-load');
+    respSel.innerHTML   = '<option value="">— загружаю… —</option>';
+    loadEl.textContent  = '';
     if (!spId) { respSel.innerHTML = '<option value="">— не назначен —</option>'; return; }
     try {
-      const members = await api.get(`/api/v1/spaces/${spId}/members`);
+      const [members, boardCards] = await Promise.all([
+        api.get(`/api/v1/spaces/${spId}/members`),
+        api.get(`/api/v1/cards?board_id=${boardId}&limit=200`),
+      ]);
+
+      // Список исполнителей
       respSel.innerHTML = '<option value="">— не назначен —</option>';
       (members || [])
         .filter(u => u.activated !== false)
@@ -143,6 +151,19 @@ async function init() {
           o.textContent = u.full_name || u.username;
           respSel.appendChild(o);
         });
+
+      // Загрузка команды
+      const totalH = (boardCards || []).reduce((s, c) =>
+        s + (c.estimate_workload || Number((c.properties || {})['id_615627']) || 0), 0);
+      const norm = (members || []).length * 160 || 160;
+      const pct  = Math.round((totalH / norm) * 100);
+      if (pct >= 100) {
+        loadEl.innerHTML = `<span style="color:#E24B4A">⚠️ Команда перегружена: ${pct}% нормы (${totalH} ч)</span>`;
+      } else if (pct >= 80) {
+        loadEl.innerHTML = `<span style="color:#EF9F27">⚡ Загружена на ${pct}% нормы (${totalH} ч)</span>`;
+      } else if (totalH > 0) {
+        loadEl.innerHTML = `<span style="color:#1D9E75">✅ ${pct}% нормы (${totalH} ч)</span>`;
+      }
     } catch (e) {
       respSel.innerHTML = '<option value="">— не удалось загрузить —</option>';
     }

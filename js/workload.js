@@ -8,23 +8,18 @@ const OVERVIEW_BOARD = 1843681;
 const OVERVIEW_SPACE = 820245;
 const MONTHLY_NORM   = 160;
 
-// Доски задач: id → { название, id карточки-проекта в Обзор проектов }
-const TASK_BOARDS = {
-  // Проектные доски
-  1843480: { name: 'Больше оплат',          card_id: 67893925 },
-  1843621: { name: 'Рост выручки Общепита', card_id: 67893920 },
-  1843623: { name: 'Рост CR2',              card_id: 67893914 },
-  1843625: { name: 'Квиз на сайте',         card_id: 67893931 },
-  // Доски команд
-  1841937: { name: 'ПМ',                   card_id: null },
-  1841454: { name: 'Копирайт',             card_id: null },
-  1841467: { name: 'Редактор',             card_id: null },
-  1841941: { name: 'Техпис',               card_id: null },
-  1841936: { name: 'Дизайн',              card_id: null },
-  1841938: { name: 'Интернет-маркетинг',  card_id: null },
-  1841939: { name: 'SEO',                  card_id: null },
-  1841940: { name: 'Платное продвижение',  card_id: null },
+// Доски команд для влётных задач
+const TEAM_BOARDS = {
+  1841937: 'ПМ',
+  1841454: 'Копирайт',
+  1841467: 'Редактор',
+  1841941: 'Техпис',
+  1841936: 'Дизайн',
+  1841938: 'Интернет-маркетинг',
+  1841939: 'SEO',
+  1841940: 'Платное продвижение',
 };
+const PROP_EST = 615627; // «Оценка, чел-дн»
 
 const STATUS_DOT = {
   'Бэклог':       'dot-backlog',
@@ -57,33 +52,39 @@ async function ensureAuth() {
 
 async function fetchTasks() {
   const tasks = [];
-  for (const [boardId, proj] of Object.entries(TASK_BOARDS)) {
-    const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of cards || []) {
-      const members = c.members || [];
-      const col = typeof c.column === 'object' ? c.column?.title ?? '' : '';
-      const responsible = members.filter(m => m.type === 1);
-      const assignees = responsible.length ? responsible : members;
-      if (assignees.length) {
-        for (const m of assignees) {
-          tasks.push({
-            title: c.title,
-            project: proj.name,
-            project_card_id: proj.card_id,
-            hours: c.estimate_workload || 0,
-            person: m.full_name || '—',
-            person_id: m.user_id,
-            status: col,
-          });
-        }
-      } else {
-        tasks.push({
-          title: c.title, project: proj.name, project_card_id: proj.card_id,
-          hours: c.estimate_workload || 0, person: '—', person_id: null, status: col,
-        });
+
+  function addCard(c, projName, projCardId) {
+    const col   = typeof c.column === 'object' ? (c.column?.title ?? '') : '';
+    const hours = c.estimate_workload || Number((c.properties || {})[`id_${PROP_EST}`]) || 0;
+    const members    = c.members || [];
+    const responsible = members.filter(m => m.type === 1);
+    const assignees  = responsible.length ? responsible : members;
+    if (assignees.length) {
+      for (const m of assignees) {
+        tasks.push({ title: c.title, project: projName, project_card_id: projCardId,
+          hours, person: m.full_name || '—', person_id: m.user_id, status: col });
       }
+    } else {
+      tasks.push({ title: c.title, project: projName, project_card_id: projCardId,
+        hours, person: '—', person_id: null, status: col });
     }
   }
+
+  // 1. Задачи привязанные к проектам (дети каждой проектной карточки)
+  const projCards = await api.get(`/api/v1/cards?board_id=${OVERVIEW_BOARD}&limit=100`);
+  for (const proj of (projCards || []).filter(c => !c.archived && c.type_id === 699509)) {
+    const children = await api.get(`/api/v1/cards/${proj.id}/children?limit=200`);
+    for (const c of children || []) addCard(c, proj.title, proj.id);
+  }
+
+  // 2. Влётные задачи на досках команд (без parent_id)
+  for (const [boardId, teamName] of Object.entries(TEAM_BOARDS)) {
+    const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
+    for (const c of (cards || []).filter(c => !c.parent_id)) {
+      addCard(c, `Влётная · ${teamName}`, null);
+    }
+  }
+
   return tasks;
 }
 

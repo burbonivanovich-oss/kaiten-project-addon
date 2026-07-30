@@ -148,6 +148,26 @@ var initResult = Addon.initialize({
     if (silent != null && silent >= cfg.silent_days && card.state !== 3) {
       badges.push({ text: `🔇 молчим ${silent} дн`, color: '#E24B4A' });
     }
+
+    // Авто-эскалация: объективный сигнал о риске независимо от ручного статуса
+    if (card.due_date && total > 0 && card.state !== 3) {
+      const start = new Date(card.created_at || card.created || 0);
+      const due   = new Date(card.due_date);
+      const now   = new Date();
+      const totalMs = due - start;
+      if (totalMs > 0) {
+        const timePct = Math.min(Math.round(((now - start) / totalMs) * 100), 100);
+        const gap = timePct - pct;
+        if (now > due && pct < 100) {
+          badges.push({ text: `🚨 просрочен`, color: '#E24B4A' });
+        } else if (gap >= 40) {
+          badges.push({ text: `⏰ план ${timePct}% · факт ${pct}%`, color: '#E24B4A' });
+        } else if (gap >= 20) {
+          badges.push({ text: `⏰ ${timePct}% срока → ${pct}%`, color: '#EF9F27' });
+        }
+      }
+    }
+
     dbg('badges result ' + badges.length);
     return badges;
     } catch (e) { dbg('badges ERROR ' + (e && e.message)); return []; }

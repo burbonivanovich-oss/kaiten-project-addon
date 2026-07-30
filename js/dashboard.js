@@ -18,23 +18,18 @@ const STATUS = {
   18948773: { label: 'Критичные проблемы', color: '#E24B4A' },
 };
 
-// Доски задач с привязкой к id карточки-проекта (Обзор проектов)
-const TASK_BOARDS = {
-  // Проектные доски
-  1843480: { name: 'Больше оплат',          card_id: 67893925 },
-  1843621: { name: 'Рост выручки Общепита', card_id: 67893920 },
-  1843623: { name: 'Рост CR2',              card_id: 67893914 },
-  1843625: { name: 'Квиз на сайте',         card_id: 67893931 },
-  // Доски команд
-  1841937: { name: 'ПМ',                   card_id: null },
-  1841454: { name: 'Копирайт',             card_id: null },
-  1841467: { name: 'Редактор',             card_id: null },
-  1841941: { name: 'Техпис',               card_id: null },
-  1841936: { name: 'Дизайн',              card_id: null },
-  1841938: { name: 'Интернет-маркетинг',  card_id: null },
-  1841939: { name: 'SEO',                  card_id: null },
-  1841940: { name: 'Платное продвижение',  card_id: null },
+// Доски команд: id → { название, space_id } — для orphan-детекции и URL
+const TEAM_BOARDS = {
+  1841937: { name: 'ПМ',                  space: 819415 },
+  1841454: { name: 'Копирайт',            space: 819416 },
+  1841467: { name: 'Редактор',            space: 819416 },
+  1841941: { name: 'Техпис',              space: 819416 },
+  1841936: { name: 'Дизайн',             space: 819417 },
+  1841938: { name: 'Интернет-маркетинг', space: 819418 },
+  1841939: { name: 'SEO',                 space: 819418 },
+  1841940: { name: 'Платное продвижение', space: 819418 },
 };
+const PROP_EST = 615627; // id кастомного свойства «Оценка, чел-дн»
 
 const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -85,24 +80,60 @@ async function fetchProjects() {
     });
 }
 
-async function fetchWorkload() {
+function addToLoad(people, c) {
+  const hrs = c.estimate_workload || Number((c.properties || {})[`id_${PROP_EST}`]) || 0;
+  if (!hrs) return;
+  const members  = c.members || [];
+  const resp     = members.filter(m => m.type === 1);
+  const assignees = resp.length ? resp : members;
+  for (const m of assignees) {
+    const name = m.full_name || '—';
+    if (!people.has(name)) people.set(name, { name, hours: 0 });
+    people.get(name).hours += hrs;
+  }
+}
+
+// Загрузка: дети проектных карточек + влётные задачи на досках команд
+async function fetchWorkload(projects) {
   const people = new Map();
-  for (const [boardId] of Object.entries(TASK_BOARDS)) {
+
+  // 1. Задачи привязанные к проектам (children)
+  for (const proj of projects) {
+    const children = await api.get(`/api/v1/cards/${proj.id}/children?limit=200`);
+    for (const c of children || []) addToLoad(people, c);
+  }
+
+  // 2. Влётные задачи на досках команд без parent_id
+  for (const [boardId] of Object.entries(TEAM_BOARDS)) {
     const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of cards || []) {
-      const members = c.members || [];
-      const resp = members.filter(m => m.type === 1);
-      const assignees = resp.length ? resp : members;
-      for (const m of assignees) {
-        const name = m.full_name || '—';
-        if (!people.has(name)) people.set(name, { name, hours: 0 });
-        people.get(name).hours += c.estimate_workload || 0;
-      }
+    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived)) {
+      addToLoad(people, c);
     }
   }
+
   return [...people.values()]
     .filter(p => p.name !== '—' && p.hours > 0)
     .sort((a, b) => b.hours - a.hours);
+}
+
+// Влётные задачи — без привязки к проекту
+async function fetchOrphans() {
+  const orphans = [];
+  for (const [boardId, info] of Object.entries(TEAM_BOARDS)) {
+    const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
+    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived && c.state !== 3)) {
+      orphans.push({
+        id:       c.id,
+        title:    c.title,
+        team:     info.name,
+        boardId:  Number(boardId),
+        spaceId:  info.space,
+        estimate: c.estimate_workload || Number((c.properties || {})[`id_${PROP_EST}`]) || 0,
+        assignee: (c.members || []).map(m => m.full_name).filter(Boolean).join(', ') || '—',
+      });
+    }
+  }
+  return orphans.sort((a, b) => a.team.localeCompare(b.team, 'ru'));
 }
 
 // ── Рендер ──
@@ -169,6 +200,19 @@ function renderDeadlines(projects) {
   }).join('');
 }
 
+function renderOrphans(orphans) {
+  if (!orphans.length) return '<div class="empty">Все задачи привязаны к проектам ✅</div>';
+  return orphans.map(o => {
+    const url = cardUrl(o.id, o.boardId, o.spaceId);
+    return `
+      <div class="dl-row" onclick="window.open('${url}','_blank')">
+        <div class="dl-badge warn">${esc(o.team)}</div>
+        <div class="dl-name" title="${esc(o.title)}">${esc(o.title)}</div>
+        <div class="dl-date">${esc(o.assignee)}${o.estimate ? ' · ' + o.estimate + ' ч' : ''}</div>
+      </div>`;
+  }).join('');
+}
+
 function renderWorkload(people) {
   if (!people.length) return '<div class="empty">Нет данных</div>';
   return people.map(p => {
@@ -192,11 +236,13 @@ function setPanel(id, title, html) {
 async function init() {
   await ensureAuth();
 
-  const [projects, workload] = await Promise.all([fetchProjects(), fetchWorkload()]);
+  const projects = await fetchProjects();
+  const [workload, orphans] = await Promise.all([fetchWorkload(projects), fetchOrphans()]);
 
-  setPanel('p-projects',  'Проекты',         renderProjects(projects));
-  setPanel('p-deadlines', 'Дедлайны',         renderDeadlines(projects));
-  setPanel('p-workload',  'Загруженность',    renderWorkload(workload));
+  setPanel('p-projects',  'Проекты',                  renderProjects(projects));
+  setPanel('p-deadlines', 'Дедлайны',                  renderDeadlines(projects));
+  setPanel('p-workload',  'Загруженность',              renderWorkload(workload));
+  setPanel('p-orphans',   'Влётные задачи (без проекта)', renderOrphans(orphans));
 
   const now = new Date().toLocaleString('ru', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   document.getElementById('updated').textContent = `обновлено ${now}`;
