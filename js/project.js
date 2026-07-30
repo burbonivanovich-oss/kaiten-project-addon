@@ -142,7 +142,7 @@ async function extendedBlocks(card) {
 
     ${loadRows.length ? `
     <div class="card">
-      <div class="card-title">👥 Загрузка команды (план) <span class="cnt">${totalPlan} чел-дн</span></div>
+      <div class="card-title">👥 Загрузка команды (план) <span class="cnt">${totalPlan} ч</span></div>
       ${loadRows.map(([name, days]) => `
         <div class="load">
           ${avatar(name)}
@@ -150,7 +150,7 @@ async function extendedBlocks(card) {
           <span class="load-bar">${bar(maxLoad ? Math.round(days / maxLoad * 100) : 0)}</span>
           <span class="load-num">${days}</span>
         </div>`).join('')}
-      <div class="load-foot">оценка задачи идёт на её исполнителей (поле «Оценка, чел-дн»)</div>
+      <div class="load-foot">оценка задачи идёт на её исполнителей (поле «Оценка, ч»)</div>
     </div>` : ''}
 
     ${history.length ? `
