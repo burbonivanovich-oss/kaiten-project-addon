@@ -14,7 +14,7 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { estimate: 'Оценка, чел-дн' };
+const F = { estimate: 'Оценка, ч' };
 const TASK_TYPE = 'Задача';
 // пространство «3 · Работа команд»: доски команд ищем в нём и в его подпространствах
 const DEFAULT_FUNCTIONS_SPACE_ID = 819167;

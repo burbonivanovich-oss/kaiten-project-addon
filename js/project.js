@@ -18,7 +18,7 @@
 const iframe = Addon.iframe();
 const root = document.getElementById('root');
 
-const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт', estimate: 'Оценка, чел-дн' };
+const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт', estimate: 'Оценка, ч' };
 const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Критичные проблемы': 'bad' };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
