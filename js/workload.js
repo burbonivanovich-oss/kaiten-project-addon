@@ -6,7 +6,6 @@ const api = iframe.getApiClient();
 const KAITEN         = 'https://artempdirect3.kaiten.ru';
 const OVERVIEW_BOARD = 1853650;
 const OVERVIEW_SPACE = 825694;
-const MONTHLY_NORM   = 160;
 
 // Доски команд для влётных задач
 const TEAM_BOARDS = {
@@ -105,20 +104,39 @@ function dotClass(status) {
   return STATUS_DOT[status] || 'dot-backlog';
 }
 
-function normColor(pct) {
-  if (pct >= 100) return '#ef4444';
-  if (pct >= 80)  return '#f59e0b';
+// WIP — то, что человек реально тащит сейчас. В отличие от «% нормы» это
+// считается из состояния досок и не требует ни оценок, ни календаря.
+const WIP_COLUMNS = ['В работе', 'На проверке'];
+
+function wipColor(wip) {
+  if (wip >= 5) return '#ef4444';
+  if (wip >= 3) return '#f59e0b';
   return 'var(--bar-fill)';
 }
 
+// Раньше здесь стоял процент от 160 ч. Он делал вид, что знает период, календарь,
+// отпуска, долю участия и остаток работы — не зная ничего из этого, и при пустых
+// оценках показывал «0% загрузки» у человека с пятью задачами в работе.
+// Теперь показываем только измеримое и честно помечаем, насколько полны оценки.
 function renderPeople(groups) {
-  return groups.map(g => {
-    const normPct  = Math.min(Math.round((g.hours / MONTHLY_NORM) * 100), 100);
-    const overload = g.hours > MONTHLY_NORM;
-    const color    = normColor(Math.round((g.hours / MONTHLY_NORM) * 100));
-    const normLabel = g.name === '—'
-      ? `<span class="norm-label muted">${g.hours} ч</span>`
-      : `<span class="norm-label" style="color:${color}">${Math.round((g.hours/MONTHLY_NORM)*100)}% нормы</span>`;
+  const wipOf = (g) => g.tasks.filter(t => WIP_COLUMNS.includes(t.status)).length;
+  const maxWip = Math.max(...groups.map(wipOf), 1);
+
+  // aggregate() сортирует по часам — при пустых оценках это даёт произвольный
+  // порядок. Самый занятой человек должен быть сверху, поэтому сортируем по WIP.
+  return [...groups].sort((a, b) => wipOf(b) - wipOf(a) || b.hours - a.hours).map(g => {
+    const active    = g.tasks.filter(t => t.status !== 'Готово');
+    const wip       = g.tasks.filter(t => WIP_COLUMNS.includes(t.status));
+    const estimated = active.filter(t => t.hours > 0).length;
+    const barPct    = Math.round((wip.length / maxWip) * 100);
+    const color     = wipColor(wip.length);
+
+    // Часы показываем только если оценки есть, и всегда с покрытием —
+    // «40 ч» по трём задачам из семи это не оценка проекта, а её обрывок.
+    const hoursLabel = estimated
+      ? `<span class="norm-label"${estimated < active.length ? ' title="оценка проставлена не у всех задач"' : ''}>${
+          g.hours} ч${estimated < active.length ? ` · оценка у ${estimated} из ${active.length}` : ''}</span>`
+      : '<span class="norm-label muted">без оценок</span>';
 
     const taskRows = g.tasks.sort((a, b) => b.hours - a.hours).map(t => `
       <div class="task-item">
@@ -132,10 +150,11 @@ function renderPeople(groups) {
       <div class="row-card">
         <div class="row-head" onclick="toggle(this)">
           <div class="row-name">${esc(g.name)}</div>
-          <div class="bar-wrap"><div class="bar-fill" style="width:${normPct}%;background:${color}"></div></div>
-          <div class="row-meta">${normLabel} · <strong>${g.hours}</strong> ч · ${g.tasks.length} зад.</div>
+          <div class="bar-wrap"><div class="bar-fill" style="width:${barPct}%;background:${color}"></div></div>
+          <div class="row-meta"><strong>${wip.length}</strong> в работе · ${
+            active.length} активных · ${hoursLabel}</div>
         </div>
-        <div class="task-list">${taskRows || '<div class="empty">Нет задач с оценкой</div>'}</div>
+        <div class="task-list">${taskRows || '<div class="empty">Нет задач</div>'}</div>
       </div>`;
   }).join('');
 }

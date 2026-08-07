@@ -24,6 +24,11 @@ const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Кри�
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
+// Готовой считается только завершённая карточка (state 3 — колонка типа «готово»).
+// Archived (condition 2) раньше тоже шло в зачёт, и заброшенный проект, у которого
+// задачи просто убрали в архив, показывал 100% готовности.
+const isDone = (c) => c.state === 3;
+
 function readProp(defs, card, name) {
   const def = (defs || []).find((p) => p.name === name);
   if (!def) return null;
@@ -85,7 +90,7 @@ async function extendedBlocks(card) {
   const factPct = plan ? Math.round((fact / plan) * 100) : 0;
   const statusCls = STATUS_CLASS[status] || '';
 
-  const done = children.filter((c) => c.condition === 2 || c.state === 3).length;
+  const done = children.filter(isDone).length;
   const total = children.length;
 
   const byBoard = {};
@@ -128,9 +133,9 @@ async function extendedBlocks(card) {
         : Object.entries(byBoard).map(([board, list]) => `
           <div class="team">
             <div class="team-name">${esc(board)}<span class="team-badge">${
-              list.filter((c) => c.condition === 2 || c.state === 3).length} / ${list.length}</span></div>
+              list.filter(isDone).length} / ${list.length}</span></div>
             ${list.map((c) => {
-              const cdone = c.condition === 2 || c.state === 3;
+              const cdone = isDone(c);
               return `
               <div class="task ${cdone ? 'done' : ''}">
                 <span class="tick">${cdone ? '✓' : ''}</span>

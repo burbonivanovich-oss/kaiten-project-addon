@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=28';
+const PAGE_V = 'v=29';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -217,7 +217,9 @@ var initResult = Addon.initialize({
 
     let perms = null;
     try { perms = ctx.getPermissions(); } catch (pe) { dbg('perms error ' + (pe && pe.message)); }
-    if (perms && perms.card && perms.card.update === false) return [];
+    // Права режем покнопочно, а не списком целиком: куратор по ТЗ не правит
+    // карточки, но обязан видеть сводку — раньше он не получал вообще ничего.
+    const canWrite = !(perms && perms.card && perms.card.update === false);
 
     const buttons = [];
     const proj = isProject(cfg, card);
@@ -226,7 +228,7 @@ var initResult = Addon.initialize({
 
     // Формы открываем ЦЕНТРИРОВАННОЙ МОДАЛКОЙ (openDialog), а не openPopup:
     // попап прибит к кнопке, имеет фиксированную высоту и режет контент.
-    if (proj) {
+    if (proj && canWrite) {
       // Главная кнопка проекта: задача заводится СРАЗУ на доску команды и в тот же
       // момент привязывается к проекту — связь нельзя забыть, а значит не рассыплются
       // % готовности, «задачи по командам» и загрузка.
@@ -244,7 +246,7 @@ var initResult = Addon.initialize({
       });
     }
 
-    if (goal) {
+    if (goal && canWrite) {
       // цель-родитель предзаполнена — заведение проекта прямо с цели
       buttons.push({
         text: '➕ Проект к этой цели',
@@ -255,7 +257,7 @@ var initResult = Addon.initialize({
       });
     }
 
-    if (proj || /ШАБЛОН/.test(card.title || '')) {
+    if ((proj || /ШАБЛОН/.test(card.title || '')) && canWrite) {
       buttons.push({
         text: '🆕 Создать проект',
         callback: (c) => c.openDialog({
@@ -290,7 +292,7 @@ var initResult = Addon.initialize({
     }
 
     // Поставить цель — на любой карточке доски «Цели» (включая шаблон «НАЧНИ ОТСЮДА»)
-    if (card.board_id === 1853658) {
+    if (card.board_id === 1853658 && canWrite) {
       buttons.push({
         text: '➕ Поставить цель',
         callback: (c) => c.openDialog({

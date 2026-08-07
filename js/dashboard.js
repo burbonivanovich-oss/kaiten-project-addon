@@ -6,7 +6,6 @@ const api    = iframe.getApiClient();
 const KAITEN         = 'https://artempdirect3.kaiten.ru';
 const OVERVIEW_BOARD = 1853650;
 const OVERVIEW_SPACE = 825694;   // пространство «2 · Портфель проектов»
-const MONTHLY_NORM   = 160;
 
 const cardUrl = (cardId, boardId, spaceId) =>
   `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
@@ -80,16 +79,22 @@ async function fetchProjects() {
     });
 }
 
+// Задачи без оценки раньше отбрасывались целиком — человек с пятью задачами
+// в работе и пустым полем «Оценка, ч» выглядел незагруженным. Теперь задача
+// считается всегда, а часы — отдельный, опциональный сигнал.
 function addToLoad(people, c) {
+  if (c.archived || c.state === 3) return;          // готовое не нагружает
   const hrs = c.estimate_workload || Number((c.properties || {})[`id_${PROP_EST}`]) || 0;
-  if (!hrs) return;
   const members  = c.members || [];
   const resp     = members.filter(m => m.type === 1);
   const assignees = resp.length ? resp : members;
   for (const m of assignees) {
     const name = m.full_name || '—';
-    if (!people.has(name)) people.set(name, { name, hours: 0 });
-    people.get(name).hours += hrs;
+    if (!people.has(name)) people.set(name, { name, hours: 0, active: 0, wip: 0, estimated: 0 });
+    const p = people.get(name);
+    p.active += 1;
+    if (c.state === 2) p.wip += 1;                  // 2 — «в работе»
+    if (hrs) { p.hours += hrs; p.estimated += 1; }
   }
 }
 
@@ -112,8 +117,8 @@ async function fetchWorkload(projects) {
   }
 
   return [...people.values()]
-    .filter(p => p.name !== '—' && p.hours > 0)
-    .sort((a, b) => b.hours - a.hours);
+    .filter(p => p.name !== '—' && p.active > 0)
+    .sort((a, b) => b.wip - a.wip || b.active - a.active);
 }
 
 // Влётные задачи — без привязки к проекту
@@ -138,9 +143,10 @@ async function fetchOrphans() {
 
 // ── Рендер ──
 
-function normColor(pct) {
-  if (pct >= 100) return '#ef4444';
-  if (pct >= 80)  return '#f59e0b';
+// Пороги по числу задач в работе, а не по проценту выдуманной нормы.
+function normColor(wip) {
+  if (wip >= 5) return '#ef4444';
+  if (wip >= 3) return '#f59e0b';
   return '#3b5bdb';
 }
 
@@ -215,16 +221,22 @@ function renderOrphans(orphans) {
 
 function renderWorkload(people) {
   if (!people.length) return '<div class="empty">Нет данных</div>';
+  const maxWip = Math.max(...people.map(p => p.wip), 1);
   return people.map(p => {
-    const pct   = Math.min(Math.round((p.hours / MONTHLY_NORM) * 100), 100);
-    const color = normColor(Math.round((p.hours / MONTHLY_NORM) * 100));
+    const pct   = Math.round((p.wip / maxWip) * 100);
+    const color = normColor(p.wip);
+    // Часы — только если оценки есть, и с пометкой о неполноте.
+    const hours = p.estimated
+      ? `${p.hours} ч${p.estimated < p.active ? ` (оценка у ${p.estimated} из ${p.active})` : ''}`
+      : 'без оценок';
     return `
       <div class="wl-row">
         <div class="wl-top">
           <div class="wl-name">${esc(p.name)}</div>
-          <div class="wl-pct" style="color:${color}">${p.hours} ч · ${Math.round((p.hours/MONTHLY_NORM)*100)}%</div>
+          <div class="wl-pct" style="color:${color}">${p.wip} в работе · ${p.active} активных</div>
         </div>
         <div class="wl-bar-wrap"><div class="wl-bar" style="width:${pct}%;background:${color}"></div></div>
+        <div class="wl-sub muted">${hours}</div>
       </div>`;
   }).join('');
 }

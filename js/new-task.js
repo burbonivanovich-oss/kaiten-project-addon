@@ -152,17 +152,20 @@ async function init() {
           respSel.appendChild(o);
         });
 
-      // Загрузка команды
-      const totalH = (boardCards || []).reduce((s, c) =>
-        s + (c.estimate_workload || Number((c.properties || {})['id_615627']) || 0), 0);
-      const norm = (members || []).length * 160 || 160;
-      const pct  = Math.round((totalH / norm) * 100);
-      if (pct >= 100) {
-        loadEl.innerHTML = `<span style="color:#E24B4A">⚠️ Команда перегружена: ${pct}% нормы (${totalH} ч)</span>`;
-      } else if (pct >= 80) {
-        loadEl.innerHTML = `<span style="color:#EF9F27">⚡ Загружена на ${pct}% нормы (${totalH} ч)</span>`;
-      } else if (totalH > 0) {
-        loadEl.innerHTML = `<span style="color:#1D9E75">✅ ${pct}% нормы (${totalH} ч)</span>`;
+      // Загрузка команды. Раньше здесь суммировались часы ВСЕХ карточек доски —
+      // включая готовые и архивные — и делились на «участники × 160». Норма
+      // выдуманная, готовое не нагружает, а без оценок выходил уверенный 0%.
+      // Показываем то, что видно на доске: сколько задач команда тащит сейчас.
+      const live = (boardCards || []).filter(c => !c.archived && c.state !== 3);
+      const wip  = live.filter(c => c.state === 2).length;
+      const perPerson = (members || []).length ? wip / members.length : wip;
+
+      if (perPerson >= 4) {
+        loadEl.innerHTML = `<span style="color:#E24B4A">⚠️ У команды ${wip} задач в работе — очередь длинная</span>`;
+      } else if (perPerson >= 2.5) {
+        loadEl.innerHTML = `<span style="color:#EF9F27">⚡ ${wip} задач в работе, ${live.length} активных</span>`;
+      } else if (live.length) {
+        loadEl.innerHTML = `<span style="color:#1D9E75">✅ ${wip} задач в работе, ${live.length} активных</span>`;
       }
     } catch (e) {
       respSel.innerHTML = '<option value="">— не удалось загрузить —</option>';
