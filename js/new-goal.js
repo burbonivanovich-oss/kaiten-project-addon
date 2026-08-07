@@ -1,16 +1,16 @@
 /* ФОРМА «НОВАЯ ЦЕЛЬ»
  *
- * Создаёт карточку типа «Цель» (699506) в колонке «Активна» доски «Цели».
+ * Создаёт карточку типа «Цель» (705577) в колонке «Активна» доски «Цели».
  * Поля: название, срок, ответственный, план, факт.
  */
 
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const GOAL_BOARD_ID  = 1841482;
-const GOAL_COL_AKTIV = 6359582;   // Активна
-const GOAL_LANE_ID   = 2314379;   // Основной поток
-const GOAL_TYPE_ID   = 699506;
+const GOAL_BOARD_ID  = 1853658;
+const GOAL_COL_AKTIV = 6407960;   // Активна
+const GOAL_LANE_ID   = 2331823;   // Default Lane
+const GOAL_TYPE_ID   = 705577;
 const PROP_PLAN      = 615625;    // «План» (number)
 const PROP_FACT      = 615624;    // «Факт» (number)
 

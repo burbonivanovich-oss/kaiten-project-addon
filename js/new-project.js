@@ -7,11 +7,11 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const OVERVIEW_BOARD = 1843681;
-const OVERVIEW_COL   = 6369010;
-const OVERVIEW_LANE  = 2317387;
-const PORTFOLIO_UID  = '5a8985b0-7234-4802-9916-7dee731929f7';
-const PROJECT_TYPE   = 699509;
+const OVERVIEW_BOARD = 1853650;
+const OVERVIEW_COL   = 6407923;
+const OVERVIEW_LANE  = 2331815;
+const PORTFOLIO_UID  = '788760c7-b29e-450b-bb4a-3f2d067c2f04';
+const PROJECT_TYPE   = 705580;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 

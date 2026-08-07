@@ -3,9 +3,9 @@
 const iframe = Addon.iframe();
 const api    = iframe.getApiClient();
 
-const KAITEN         = 'https://artempdirect1.kaiten.ru';
-const OVERVIEW_BOARD = 1843681;
-const OVERVIEW_SPACE = 820245;   // пространство «2 · Портфель проектов»
+const KAITEN         = 'https://artempdirect3.kaiten.ru';
+const OVERVIEW_BOARD = 1853650;
+const OVERVIEW_SPACE = 825694;   // пространство «2 · Портфель проектов»
 const MONTHLY_NORM   = 160;
 
 const cardUrl = (cardId, boardId, spaceId) =>
@@ -20,14 +20,14 @@ const STATUS = {
 
 // Доски команд: id → { название, space_id } — для orphan-детекции и URL
 const TEAM_BOARDS = {
-  1841937: { name: 'ПМ',                  space: 819415 },
-  1841454: { name: 'Копирайт',            space: 819416 },
-  1841467: { name: 'Редактор',            space: 819416 },
-  1841941: { name: 'Техпис',              space: 819416 },
-  1841936: { name: 'Дизайн',             space: 819417 },
-  1841938: { name: 'Интернет-маркетинг', space: 819418 },
-  1841939: { name: 'SEO',                 space: 819418 },
-  1841940: { name: 'Платное продвижение', space: 819418 },
+  1853651: { name: 'ПМ',                  space: 825700 },
+  1853654: { name: 'Копирайт',            space: 825702 },
+  1853655: { name: 'Редактор',            space: 825702 },
+  1853656: { name: 'Техпис',              space: 825702 },
+  1853657: { name: 'Дизайн',             space: 825703 },
+  1853659: { name: 'Интернет-маркетинг', space: 825704 },
+  1853660: { name: 'SEO',                 space: 825704 },
+  1853661: { name: 'Платное продвижение', space: 825704 },
 };
 const PROP_EST = 615627; // id кастомного свойства «Оценка, чел-дн»
 
@@ -57,7 +57,7 @@ async function ensureAuth() {
 async function fetchProjects() {
   const cards = await api.get(`/api/v1/cards?board_id=${OVERVIEW_BOARD}&limit=100`);
   return (cards || [])
-    .filter(c => !c.archived && c.type_id === 699509)
+    .filter(c => !c.archived && c.type_id === 705580)
     .map(c => {
       const p  = c.properties || {};
       const sv = (p['id_615620'] || [])[0]; // Статус select-value id

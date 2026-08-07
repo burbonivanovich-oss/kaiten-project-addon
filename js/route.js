@@ -13,7 +13,7 @@ const api = iframe.getApiClient();
 const root = document.getElementById('root');
 
 // Пространство функцзон этой инсталляции; перебивается настройкой functions_space_id.
-const DEFAULT_FUNC_SPACE = 819167; // «3 · Работа команд» — доски-функцзоны
+const DEFAULT_FUNC_SPACE = 825695; // «3 · Работа команд» — доски-функцзоны
 const PROJECT_TYPE = 'Проект';     // тип ищем ПО ИМЕНИ: id в каждой компании свои
 const ROUTE_KEY = 'route_boards';  // ключ хранилища маршрута на карточке
 

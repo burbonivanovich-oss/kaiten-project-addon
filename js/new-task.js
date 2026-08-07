@@ -17,7 +17,7 @@ const api = iframe.getApiClient();
 const F = { estimate: 'Оценка, ч' };
 const TASK_TYPE = 'Задача';
 // пространство «3 · Работа команд»: доски команд ищем в нём и в его подпространствах
-const DEFAULT_FUNCTIONS_SPACE_ID = 819167;
+const DEFAULT_FUNCTIONS_SPACE_ID = 825695;
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 

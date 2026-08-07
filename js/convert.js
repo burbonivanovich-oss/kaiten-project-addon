@@ -14,7 +14,7 @@ const root = document.getElementById('root');
 const PROJECT_TYPE = 'Проект';
 const TASK_TYPE = 'Задача';
 // Доска портфеля этой инсталляции; перебивается настройкой new_project_board_id.
-const DEFAULT_PORTFOLIO_BOARD = 1841475; // «Проекты» в «2 · Направления»
+const DEFAULT_PORTFOLIO_BOARD = 1853650; // «Обзор проектов» в «2 · Портфель проектов»
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -108,7 +108,7 @@ async function convert(kind) {
       const body = { type_id: await typeId(PROJECT_TYPE), board_id: boardId, column_id: idea.id };
       if (lanes && lanes[0]) body.lane_id = lanes[0].id;
       await api.patch(`/api/v1/cards/${card.id}`, body);
-      iframe.showSnackbar('Идея оформлена проектом — она в портфеле «2 · Направления»', 'success');
+      iframe.showSnackbar('Идея оформлена проектом — она в портфеле «2 · Портфель проектов»', 'success');
       root.innerHTML = `<div class="convert-done">✅ Готово! Идея теперь
         ${await cardLink(boardId, 'проект в портфеле')}.
         Привяжите к цели и дозаполните поля.</div>`;

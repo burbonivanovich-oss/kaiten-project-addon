@@ -3,21 +3,21 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const KAITEN         = 'https://artempdirect1.kaiten.ru';
-const OVERVIEW_BOARD = 1843681;
-const OVERVIEW_SPACE = 820245;
+const KAITEN         = 'https://artempdirect3.kaiten.ru';
+const OVERVIEW_BOARD = 1853650;
+const OVERVIEW_SPACE = 825694;
 const MONTHLY_NORM   = 160;
 
 // Доски команд для влётных задач
 const TEAM_BOARDS = {
-  1841937: 'ПМ',
-  1841454: 'Копирайт',
-  1841467: 'Редактор',
-  1841941: 'Техпис',
-  1841936: 'Дизайн',
-  1841938: 'Интернет-маркетинг',
-  1841939: 'SEO',
-  1841940: 'Платное продвижение',
+  1853651: 'ПМ',
+  1853654: 'Копирайт',
+  1853655: 'Редактор',
+  1853656: 'Техпис',
+  1853657: 'Дизайн',
+  1853659: 'Интернет-маркетинг',
+  1853660: 'SEO',
+  1853661: 'Платное продвижение',
 };
 const PROP_EST = 615627; // «Оценка, чел-дн»
 
@@ -72,7 +72,7 @@ async function fetchTasks() {
 
   // 1. Задачи привязанные к проектам (дети каждой проектной карточки)
   const projCards = await api.get(`/api/v1/cards?board_id=${OVERVIEW_BOARD}&limit=100`);
-  for (const proj of (projCards || []).filter(c => !c.archived && c.type_id === 699509)) {
+  for (const proj of (projCards || []).filter(c => !c.archived && c.type_id === 705580)) {
     const children = await api.get(`/api/v1/cards/${proj.id}/children?limit=200`);
     for (const c of children || []) addCard(c, proj.title, proj.id);
   }
