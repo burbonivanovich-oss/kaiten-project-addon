@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=29';
+const PAGE_V = 'v=30';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -121,7 +121,8 @@ var initResult = Addon.initialize({
     // ЗАДАЧА — показываем привязку к проекту и оценку
     if (isTask(cfg, card)) {
       const badges = [];
-      if (card.parent_id) badges.push({ text: '📁 Проект', color: '#3b5bdb' });
+      // parent_id Kaiten не заполняет никогда — привязка видна в parents_count.
+      if (card.parents_count) badges.push({ text: '📁 Проект', color: '#3b5bdb' });
       if (card.estimate_workload) badges.push({ text: card.estimate_workload + ' ч' });
       return badges;
     }

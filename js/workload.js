@@ -18,7 +18,7 @@ const TEAM_BOARDS = {
   1853660: 'SEO',
   1853661: 'Платное продвижение',
 };
-const PROP_EST = 615627; // «Оценка, чел-дн»
+const PROP_EST = 620084; // «Оценка, чел-дн»
 
 const STATUS_DOT = {
   'Бэклог':       'dot-backlog',
@@ -76,10 +76,12 @@ async function fetchTasks() {
     for (const c of children || []) addCard(c, proj.title, proj.id);
   }
 
-  // 2. Влётные задачи на досках команд (без parent_id)
+  // 2. Влётные задачи на досках команд. Признак — parents_count, а не parent_id:
+  //    последний всегда null, из-за чего привязанные задачи попадали сюда второй раз
+  //    и загрузка человека удваивалась.
   for (const [boardId, teamName] of Object.entries(TEAM_BOARDS)) {
     const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of (cards || []).filter(c => !c.parent_id)) {
+    for (const c of (cards || []).filter(c => !c.parents_count && !c.archived)) {
       addCard(c, `Влётная · ${teamName}`, null);
     }
   }

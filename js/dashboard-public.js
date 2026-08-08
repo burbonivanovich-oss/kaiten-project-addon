@@ -11,9 +11,9 @@ const cardUrl = (cardId, boardId, spaceId) =>
   `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
 
 const STATUS = {
-  18948771: { label: 'В плане',            color: '#1D9E75' },
-  18948772: { label: 'Отстаёт',            color: '#EF9F27' },
-  18948773: { label: 'Критичные проблемы', color: '#E24B4A' },
+  18963880: { label: 'В плане',            color: '#1D9E75' },
+  18963881: { label: 'Отстаёт',            color: '#EF9F27' },
+  18963882: { label: 'Критичные проблемы', color: '#E24B4A' },
 };
 
 const TEAM_BOARDS = {
@@ -26,7 +26,7 @@ const TEAM_BOARDS = {
   1853660: { name: 'SEO',                 space: 825704 },
   1853661: { name: 'Платное продвижение', space: 825704 },
 };
-const PROP_EST = 615627;
+const PROP_EST = 620084;
 
 let token = localStorage.getItem(TOKEN_KEY);
 
@@ -47,7 +47,7 @@ async function fetchProjects() {
   return (cards || [])
     .filter(c => !c.archived && c.type_id === 705580)
     .map(c => {
-      const sv = (c.properties?.['id_615620'] || [])[0];
+      const sv = (c.properties?.['id_620078'] || [])[0];
       return {
         id:    c.id,
         title: c.title,
@@ -90,7 +90,8 @@ async function fetchWorkload(projects) {
   }
   for (const [boardId] of Object.entries(TEAM_BOARDS)) {
     const cards = await apiFetch(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived)) addToLoad(people, c);
+    // parents_count, а не parent_id: последний всегда null и давал двойной учёт.
+    for (const c of (cards || []).filter(c => !c.parents_count && !c.archived)) addToLoad(people, c);
   }
   return [...people.values()].filter(p => p.name !== '—' && p.active > 0)
     .sort((a, b) => b.wip - a.wip || b.active - a.active);
@@ -100,7 +101,7 @@ async function fetchOrphans() {
   const orphans = [];
   for (const [boardId, info] of Object.entries(TEAM_BOARDS)) {
     const cards = await apiFetch(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived && c.state !== 3)) {
+    for (const c of (cards || []).filter(c => !c.parents_count && !c.archived && c.state !== 3)) {
       orphans.push({
         id: c.id, title: c.title, team: info.name,
         boardId: Number(boardId), spaceId: info.space,

@@ -12,9 +12,9 @@ const cardUrl = (cardId, boardId, spaceId) =>
 
 // Статус: id значения → метка + цвет
 const STATUS = {
-  18948771: { label: 'В плане',            color: '#1D9E75' },
-  18948772: { label: 'Отстаёт',            color: '#EF9F27' },
-  18948773: { label: 'Критичные проблемы', color: '#E24B4A' },
+  18963880: { label: 'В плане',            color: '#1D9E75' },
+  18963881: { label: 'Отстаёт',            color: '#EF9F27' },
+  18963882: { label: 'Критичные проблемы', color: '#E24B4A' },
 };
 
 // Доски команд: id → { название, space_id } — для orphan-детекции и URL
@@ -28,7 +28,7 @@ const TEAM_BOARDS = {
   1853660: { name: 'SEO',                 space: 825704 },
   1853661: { name: 'Платное продвижение', space: 825704 },
 };
-const PROP_EST = 615627; // id кастомного свойства «Оценка, чел-дн»
+const PROP_EST = 620084; // id кастомного свойства «Оценка, чел-дн»
 
 const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -59,7 +59,7 @@ async function fetchProjects() {
     .filter(c => !c.archived && c.type_id === 705580)
     .map(c => {
       const p  = c.properties || {};
-      const sv = (p['id_615620'] || [])[0]; // Статус select-value id
+      const sv = (p['id_620078'] || [])[0]; // Статус select-value id
       return {
         id:      c.id,
         title:   c.title,
@@ -108,10 +108,11 @@ async function fetchWorkload(projects) {
     for (const c of children || []) addToLoad(people, c);
   }
 
-  // 2. Влётные задачи на досках команд без parent_id
+  // 2. Влётные задачи на досках команд. Признак — parents_count: parent_id Kaiten
+  //    не заполняет, поэтому привязанные задачи считались здесь повторно.
   for (const [boardId] of Object.entries(TEAM_BOARDS)) {
     const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived)) {
+    for (const c of (cards || []).filter(c => !c.parents_count && !c.archived)) {
       addToLoad(people, c);
     }
   }
@@ -126,7 +127,7 @@ async function fetchOrphans() {
   const orphans = [];
   for (const [boardId, info] of Object.entries(TEAM_BOARDS)) {
     const cards = await api.get(`/api/v1/cards?board_id=${boardId}&limit=200`);
-    for (const c of (cards || []).filter(c => !c.parent_id && !c.archived && c.state !== 3)) {
+    for (const c of (cards || []).filter(c => !c.parents_count && !c.archived && c.state !== 3)) {
       orphans.push({
         id:       c.id,
         title:    c.title,

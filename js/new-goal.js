@@ -11,8 +11,8 @@ const GOAL_BOARD_ID  = 1853658;
 const GOAL_COL_AKTIV = 6407960;   // Активна
 const GOAL_LANE_ID   = 2331823;   // Default Lane
 const GOAL_TYPE_ID   = 705577;
-const PROP_PLAN      = 615625;    // «План» (number)
-const PROP_FACT      = 615624;    // «Факт» (number)
+const PROP_PLAN      = 620082;    // «План» (number)
+const PROP_FACT      = 620081;    // «Факт» (number)
 
 const msg = (t) => { document.getElementById('msg').textContent = t || ''; };
 
