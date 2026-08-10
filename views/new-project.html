@@ -11,8 +11,13 @@
     <label>Название проекта *
       <input id="title" required placeholder="Например: Партнёрство с …" />
     </label>
-    <label>Срок
-      <input id="due" type="date" />
+    <!-- Срок обязателен: это ставка, а не украшение. Проект без срока нельзя
+         сравнить с темпом, поэтому система не может сказать про него ничего,
+         кроме процента. Так «Квиз» и провисел без единого сигнала. -->
+    <label>До какого числа готовы этим заниматься *
+      <input id="due" type="date" required />
+      <span class="hint">Не прогноз, а решение: сколько мы готовы вложить.
+      Если к сроку не успели — это повод пересмотреть замысел, а не молча продлить.</span>
     </label>
     <label>Ответственный
       <select id="responsible"><option value="">— не назначен —</option></select>
@@ -22,6 +27,6 @@
     </div>
     <div id="msg" class="hint"></div>
   </form>
-  <script src="../js/new-project.js?v=12"></script>
+  <script src="../js/new-project.js?v=13"></script>
 </body>
 </html>

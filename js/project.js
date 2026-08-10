@@ -18,7 +18,8 @@
 const iframe = Addon.iframe();
 const root = document.getElementById('root');
 
-const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт', estimate: 'Оценка, ч' };
+const F = { status: 'Статус', metric: 'Что меряем', plan: 'План', fact: 'Факт', estimate: 'Оценка, ч',
+            leadName: 'Опережающий показатель', leadFact: 'Опережающий: факт' };
 const STATUS_CLASS = { 'В плане': 'ok', 'Отстаёт': 'warn', 'Критичные проблемы': 'bad' };
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
@@ -63,6 +64,107 @@ function heroHtml(cls, title, sub, pct) {
         <div class="hero-sub">${sub}</div>
       </div>
       <div class="hero-pct"><b>${pct}%</b><span>готово</span></div>
+    </div>`;
+}
+
+/* ── Доклад и факт — это два разных ответа, и раньше они были склеены ──────
+ *
+ * Хиро красился ручным статусом, а процент считался из задач. Получался
+ * зелёный проект с нулевой готовностью: машинист доложил «в плане», система
+ * видела, что не сделано ничего, и обе правды показывались как одна.
+ *
+ * Теперь цветом ведёт СИСТЕМА (её нельзя уговорить), доклад машиниста стоит
+ * отдельным блоком, а если доклад оптимистичнее факта — это прямо сказано.
+ */
+
+const LEVEL = { ok: 0, warn: 1, bad: 2 };
+const LEVEL_NAME = ['ok', 'warn', 'bad'];
+
+// Считается из самой карточки — без API, поэтому виден всегда.
+function systemSignals(card, pct, total) {
+  const items = [];
+  let level = LEVEL.ok;
+  const raise = (l) => { if (l > level) level = l; };
+
+  const now = Date.now();
+  const due = card.due_date ? new Date(card.due_date) : null;
+
+  if (!total) {
+    items.push({ lvl: 'warn', text: 'К проекту не привязано ни одной задачи — прогресс считать не из чего' });
+    raise(LEVEL.warn);
+  }
+
+  if (due && due.getTime() < now && pct < 100) {
+    const late = Math.floor((now - due.getTime()) / 86400000);
+    items.push({ lvl: 'bad', text: `Срок прошёл ${late} дн назад, сделано ${pct}%` });
+    raise(LEVEL.bad);
+  } else if (due && total) {
+    // Темп: сколько срока прошло против того, сколько сделано.
+    const start = new Date(card.created_at || card.created || 0).getTime();
+    const span = due.getTime() - start;
+    if (span > 0) {
+      const timePct = Math.min(Math.round(((now - start) / span) * 100), 100);
+      const gap = timePct - pct;
+      if (gap >= 40) {
+        items.push({ lvl: 'bad', text: `Прошло ${timePct}% срока, сделано ${pct}% — отставание от темпа` });
+        raise(LEVEL.bad);
+      } else if (gap >= 20) {
+        items.push({ lvl: 'warn', text: `Прошло ${timePct}% срока, сделано ${pct}% — идём медленнее плана` });
+        raise(LEVEL.warn);
+      } else {
+        items.push({ lvl: 'ok', text: `Прошло ${timePct}% срока, сделано ${pct}% — в темпе` });
+      }
+    }
+  } else if (!due) {
+    items.push({ lvl: 'warn', text: 'Срок не задан — темп не с чем сравнивать' });
+    raise(LEVEL.warn);
+  }
+
+  const silent = daysAgo(card.comment_last_added_at || card.created);
+  if (silent != null && silent > 14) {
+    items.push({ lvl: 'warn', text: `Без отчёта ${silent} дн` });
+    raise(LEVEL.warn);
+  }
+
+  return { level, cls: LEVEL_NAME[level], items };
+}
+
+const signalsCard = (sys) => `
+  <div class="card">
+    <div class="card-title">📡 Что видит система</div>
+    ${sys.items.map((s) => `
+      <div class="task"><span class="dot ${s.lvl}"></span><span class="t-title">${esc(s.text)}</span></div>
+    `).join('')}
+  </div>`;
+
+// Ручной статус — это доклад, а не факт. Показываем как доклад, с датой.
+function reportedCard(status, silent) {
+  const cls = STATUS_CLASS[status] || '';
+  const when = silent == null ? 'дата неизвестна'
+    : silent === 0 ? 'сегодня' : `${silent} дн назад`;
+  return `
+    <div class="card">
+      <div class="card-title">📣 Докладывает машинист</div>
+      <div class="task">
+        <span class="dot ${cls}"></span>
+        <span class="t-title"><b>${esc(status)}</b></span>
+        <span class="due">обновлено ${when}</span>
+      </div>
+    </div>`;
+}
+
+// Расхождение показываем только в одну сторону: когда доклад приятнее факта.
+// Обратное («доложил хуже, чем есть») — не проблема, а осторожность.
+function mismatchBox(status, sys) {
+  const reported = { 'В плане': LEVEL.ok, 'Не начат': LEVEL.ok,
+                     'Отстаёт': LEVEL.warn, 'Критичные проблемы': LEVEL.bad }[status];
+  if (reported == null || reported >= sys.level) return '';
+  const worst = sys.items.find((s) => s.lvl === LEVEL_NAME[sys.level]);
+  return `
+    <div class="card warn-box">
+      <div class="card-title">⚠️ Доклад расходится с фактом</div>
+      <div class="muted">Статус «${esc(status)}», но система видит: ${esc(worst ? worst.text : '—')}.
+      Либо статус пора обновить, либо в комментарии объяснить, почему всё в порядке.</div>
     </div>`;
 }
 
@@ -115,15 +217,38 @@ async function extendedBlocks(card) {
 
   const history = comments.filter((c) => /Статус|Отчёт/i.test(c.text || '')).slice(-6).reverse();
 
-  const metricHtml = metric ? `
-    <div class="card">
-      <div class="card-title">💰 Метрика · план / факт</div>
+  // Опережающий и отстающий показатели — в одном блоке, но разными строками
+  // и с подписью, чем они отличаются. Смешивать их нельзя: первый показывает,
+  // что команда делает сейчас, второй — что из этого вышло позже.
+  const leadName = readProp(defs, full, F.leadName);
+  const leadFact = readProp(defs, full, F.leadFact);
+
+  const lagRow = metric ? `
       <div class="metric">
         <div class="metric-label">${esc(metric)}</div>
         <div class="grow">${bar(factPct, statusCls)}</div>
         <div class="metric-num"><b>${fact}</b> из ${plan}</div>
       </div>
-    </div>` : '';
+      <div class="load-foot">итоговый — показывает результат, когда повлиять уже поздно</div>` : '';
+
+  const leadRow = leadName ? `
+      <div class="metric">
+        <div class="metric-label">${esc(leadName)}</div>
+        <div class="grow"></div>
+        <div class="metric-num"><b>${leadFact != null ? esc(leadFact) : '—'}</b></div>
+      </div>
+      <div class="load-foot">опережающий — на него команда влияет на этой неделе</div>`
+    : `<div class="muted">Опережающий показатель не задан. Он заполняется в форме
+       «📝 Отчёт за 2 недели» — без него виден только результат задним числом.</div>`;
+
+  // Блок показываем всегда: отсутствие опережающего показателя — это тоже
+  // сообщение, и оно важнее пустоты на его месте.
+  const metricHtml = `
+    <div class="card">
+      <div class="card-title">📈 Показатели</div>
+      ${leadRow}
+      ${lagRow}
+    </div>`;
 
   const blocks = `
     <div class="card">
@@ -179,22 +304,27 @@ async function render() {
   const pct = total ? Math.round((done / total) * 100) : 0;
 
   const silent = daysAgo(card.comment_last_added_at || card.created);
-  const stale = (silent != null && silent > 14) ? `🔇 без отчёта ${silent} дн · ` : '';
   const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
-  // Базовый хиро: ведёт готовностью (статус пока недоступен без API).
-  const baseTitle = total ? `${done} из ${total} задач сделано` : 'Проект';
+  // Хиро ведёт системным сигналом, а не ручным статусом: цвет должен отражать
+  // то, что видно из данных, иначе он снова начнёт успокаивать без оснований.
+  const sys = systemSignals(card, pct, total);
+  const heroTitle = total ? `${done} из ${total} задач сделано` : 'Задач ещё нет';
+
   root.innerHTML =
-    `<div id="hero">${heroHtml('ok', baseTitle, `${stale}${due}`, pct)}</div>` +
+    heroHtml(sys.cls, heroTitle, due, pct) +
+    signalsCard(sys) +
+    `<div id="reported"></div>` +
     `<div id="ext"><div class="muted" style="padding:4px 2px">Подгружаю задачи…</div></div>`;
   iframe.fitSize('#root');
 
   const ext = await extendedBlocks(card);
   if (ext) {
-    // API доступен — повышаем хиро до статусного и показываем блоки
+    // Доклад машиниста доступен только через API — ставим его отдельным блоком
+    // рядом с системными сигналами, а не поверх них.
     if (ext.status) {
-      const cls = STATUS_CLASS[ext.status] || 'ok';
-      document.getElementById('hero').innerHTML = heroHtml(cls, ext.status, `${stale}${due}`, pct);
+      document.getElementById('reported').innerHTML =
+        reportedCard(ext.status, silent) + mismatchBox(ext.status, sys);
     }
     document.getElementById('ext').innerHTML = ext.metricHtml + ext.blocks;
   } else {

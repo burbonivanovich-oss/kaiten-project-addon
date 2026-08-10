@@ -19,6 +19,19 @@
     <div class="field">
       <label for="fact">Факт по метрике <span class="muted" id="metric-hint"></span></label>
       <input id="fact" type="number" step="any" placeholder="одно число">
+      <div class="hint">Итоговый показатель. Меняется медленно и говорит о прошлом.</div>
+    </div>
+    <!-- Опережающий показатель (4DX): то, на что команда влияет на этой неделе.
+         Итоговая метрика сообщает о результате слишком поздно, чтобы на него
+         успеть повлиять; опережающая — это рычаг, который в руках у команды. -->
+    <div class="field">
+      <label for="lead-fact">Опережающий показатель <span class="muted" id="lead-hint"></span></label>
+      <input id="lead-fact" type="number" step="any" placeholder="одно число">
+      <div class="hint" id="lead-empty" style="display:none">
+        У проекта он ещё не задан. Впишите ниже, что команда двигает еженедельно —
+        например «демо в неделю» или «страниц переписано».
+      </div>
+      <input id="lead-name" type="text" placeholder="что именно меряем" style="display:none;margin-top:6px">
     </div>
     <div class="field"><label for="done">Что сделали за 2 недели</label><textarea id="done" rows="2"></textarea></div>
     <div class="field"><label for="next">Что дальше</label><textarea id="next" rows="2"></textarea></div>
@@ -28,6 +41,6 @@
       <span id="msg" class="muted"></span>
     </div>
   </div>
-  <script src="../js/report.js?v=7"></script>
+  <script src="../js/report.js?v=8"></script>
 </body>
 </html>

@@ -207,9 +207,40 @@ function renderDeadlines(projects) {
   }).join('');
 }
 
-function renderOrphans(orphans) {
-  if (!orphans.length) return '<div class="empty">Все задачи привязаны к проектам ✅</div>';
-  return orphans.map(o => {
+/* Влётное: список сам по себе ничего не решает — решает доля.
+ *
+ * Пока видно только перечень, разговор остаётся про отдельные задачи («а эту
+ * зачем взяли?»). Как только видно, что влётное съедает половину активной
+ * работы, разговор становится про ёмкость и приоритеты.
+ *
+ * Знаменатель берём из самих проектов: children_count − children_done это и
+ * есть активная плановая работа. Дополнительных запросов не нужно.
+ */
+function renderOrphans(orphans, projects) {
+  const plannedActive = projects.reduce((s, p) => s + Math.max(p.total - p.done, 0), 0);
+  const unplanned = orphans.length;
+  const all = plannedActive + unplanned;
+  const pct = all ? Math.round((unplanned / all) * 100) : 0;
+
+  // Порог условный, но он должен быть: без него цифра не превращается в решение.
+  const cls = pct >= 40 ? 'bad' : pct >= 25 ? 'warn' : 'ok';
+  const verdict = pct >= 40 ? 'влётное вытесняет проекты'
+                : pct >= 25 ? 'заметная доля — стоит следить'
+                : 'в пределах нормального';
+
+  const share = `
+    <div class="share ${cls}">
+      <div class="share-num">${pct}%</div>
+      <div class="share-txt">
+        <b>${unplanned}</b> влётных против <b>${plannedActive}</b> плановых активных задач
+        <div class="muted">${verdict}</div>
+      </div>
+    </div>`;
+
+  if (!orphans.length) {
+    return share + '<div class="empty">Все задачи привязаны к проектам ✅</div>';
+  }
+  return share + orphans.map(o => {
     const url = cardUrl(o.id, o.boardId, o.spaceId);
     return `
       <div class="dl-row" onclick="window.open('${url}','_blank')">
@@ -255,7 +286,7 @@ async function init() {
   setPanel('p-projects',  'Проекты',                  renderProjects(projects));
   setPanel('p-deadlines', 'Дедлайны',                  renderDeadlines(projects));
   setPanel('p-workload',  'Загруженность',              renderWorkload(workload));
-  setPanel('p-orphans',   'Влётные задачи (без проекта)', renderOrphans(orphans));
+  setPanel('p-orphans',   'Влётные задачи (без проекта)', renderOrphans(orphans, projects));
 
   const now = new Date().toLocaleString('ru', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   document.getElementById('updated').textContent = `обновлено ${now}`;

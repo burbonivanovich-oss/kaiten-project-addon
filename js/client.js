@@ -36,10 +36,10 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=30';
+const PAGE_V = 'v=31';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
-const F = { status: 'Статус' };
+const F = { status: 'Статус', appetite: 'Аппетит' };
 
 // Цвета для плашек. Тут hex, а не индексы палитры Kaiten — это наша отрисовка.
 const STATUS_COLOR = {
@@ -118,11 +118,15 @@ var initResult = Addon.initialize({
     const card = await ctx.getCard();
     const cfg = await getCfg(ctx);
 
-    // ЗАДАЧА — показываем привязку к проекту и оценку
+    // ЗАДАЧА — привязка к проекту и аппетит
     if (isTask(cfg, card)) {
       const badges = [];
       // parent_id Kaiten не заполняет никогда — привязка видна в parents_count.
       if (card.parents_count) badges.push({ text: '📁 Проект', color: '#3b5bdb' });
+      // Аппетит — то, что теперь спрашивает форма. Часы показываем, только если
+      // они реально проставлены: иначе доска говорила бы о том, чего не спрашивали.
+      const appetite = await propValue(ctx, card, F.appetite);
+      if (appetite) badges.push({ text: String(appetite).split(' · ')[0], color: '#6c5cd4' });
       if (card.estimate_workload) badges.push({ text: card.estimate_workload + ' ч' });
       return badges;
     }

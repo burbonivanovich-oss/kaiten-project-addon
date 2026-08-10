@@ -12,7 +12,10 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { status: 'Статус', metric: 'Что меряем', fact: 'Факт', nextReport: 'Когда отчитаться' };
+const F = { status: 'Статус', metric: 'Что меряем', fact: 'Факт', nextReport: 'Когда отчитаться',
+            // 4DX: отстающий показатель («Факт») говорит о прошлом, опережающий —
+            // это то, на что можно повлиять до того, как результат сложится.
+            leadName: 'Опережающий показатель', leadFact: 'Опережающий: факт' };
 
 let chosen = null, card = null, defs = [];
 const $ = (id) => document.getElementById(id);
@@ -74,6 +77,17 @@ async function init() {
     if (cur) $('metric-hint').textContent = '· ' + (cur.value || cur.display_value || '');
   }
 
+  // Опережающий показатель: если у проекта он уже назван — подписываем поле.
+  // Если нет — просим назвать здесь же, чтобы это не требовало отдельного захода.
+  const ld = def(F.leadName);
+  const leadName = ld ? (card.properties || {})[`id_${ld.id}`] : null;
+  if (leadName) {
+    $('lead-hint').textContent = '· ' + leadName;
+  } else {
+    $('lead-empty').style.display = '';
+    $('lead-name').style.display  = '';
+  }
+
   $('statuses').addEventListener('click', (e) => {
     const b = e.target.closest('.st');
     if (!b) return;
@@ -90,11 +104,18 @@ async function submit() {
   $('submit').disabled = true;
   msg('Публикую…');
 
+  // Опережающий показатель кладём и в комментарий: тогда его динамика видна
+  // в истории отчётов, а не только последним значением в поле.
+  const ldName = $('lead-name').value.trim()
+    || ($('lead-hint').textContent || '').replace(/^·\s*/, '').trim();
+  const ldVal  = $('lead-fact').value.trim();
+
   const text = [
     `**Отчёт за 2 недели — ${chosen}**`, '',
     `**Что сделали:** ${$('done').value.trim() || '—'}`,
     `**Что дальше:** ${$('next').value.trim() || '—'}`,
     `**Риски:** ${$('risks').value.trim() || '—'}`,
+    ...(ldVal !== '' ? [`**${ldName || 'Опережающий показатель'}:** ${ldVal}`] : []),
   ].join('\n');
 
   try {
@@ -106,6 +127,12 @@ async function submit() {
 
     const factVal = $('fact').value.trim();
     if (factVal !== '' && def(F.fact)) props[`id_${def(F.fact).id}`] = Number(factVal);
+
+    const leadVal = $('lead-fact').value.trim();
+    if (leadVal !== '' && def(F.leadFact)) props[`id_${def(F.leadFact).id}`] = Number(leadVal);
+
+    const leadNm = $('lead-name').value.trim();
+    if (leadNm !== '' && def(F.leadName)) props[`id_${def(F.leadName).id}`] = leadNm;
 
     if (def(F.nextReport)) {
       const d = new Date(Date.now() + 14 * 86400000);

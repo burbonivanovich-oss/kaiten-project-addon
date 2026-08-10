@@ -14,7 +14,7 @@
 const iframe = Addon.iframe();
 const api = iframe.getApiClient();
 
-const F = { estimate: 'Оценка, ч' };
+const F = { appetite: 'Аппетит' };   // Shape Up: решение, а не прогноз
 const TASK_TYPE = 'Задача';
 // пространство «3 · Работа команд»: доски команд ищем в нём и в его подпространствах
 const DEFAULT_FUNCTIONS_SPACE_ID = 825695;
@@ -202,11 +202,13 @@ async function init() {
       const respId = respSel.value;
       if (respId) body.members = [{ user_id: Number(respId), role_type: 'responsible' }];
 
-      const est = document.getElementById('est').value;
-      if (est) {
+      // Аппетит — select, поэтому пишем id значения, а не текст.
+      const appetite = document.getElementById('appetite').value;
+      if (appetite) {
         const props = await api.get('/api/v1/company/custom-properties?limit=200');
-        const estDef = (props || []).find((p) => p.name === F.estimate);
-        if (estDef) body.properties = { [`id_${estDef.id}`]: Number(est) };
+        const apDef = (props || []).find((p) => p.name === F.appetite);
+        const val = apDef && (apDef.values || []).find((v) => v.value === appetite);
+        if (val) body.properties = { [`id_${apDef.id}`]: [val.id] };
       }
 
       const created = await api.post('/api/v1/cards', body);

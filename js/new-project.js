@@ -149,6 +149,15 @@ async function init() {
     const due    = document.getElementById('due').value;
     const respId = document.getElementById('responsible').value;
 
+    // Без срока система не может ничего сказать про темп — только процент.
+    // Браузерная валидация required это уже ловит; проверяем и здесь, потому
+    // что submit можно вызвать и не через кнопку.
+    if (!due) {
+      msg('⚠️ Поставьте срок — без него проект не с чем сравнивать.');
+      btn.disabled = false;
+      return;
+    }
+
     try {
       msg('Создаю пространство…');
       const space = await api.post('/api/v1/spaces', {

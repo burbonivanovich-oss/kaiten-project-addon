@@ -71,6 +71,14 @@
     .wl-name { flex: 1; font-weight: 500; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     .wl-pct  { font-size: 11px; font-weight: 700; white-space: nowrap; }
     .wl-sub  { font-size: 11px; margin-top: 3px; }
+    .share   { display:flex; align-items:center; gap:12px; padding:11px 12px; margin-bottom:10px;
+               border-radius:8px; border:1px solid var(--line); }
+    .share-num { font-size:26px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.02em; }
+    .share-txt { font-size:12.5px; line-height:1.35; }
+    .share.ok   { background:#1d9e7514; border-color:#1d9e7540; } .share.ok   .share-num { color:#1D9E75; }
+    .share.warn { background:#ef9f2714; border-color:#ef9f2740; } .share.warn .share-num { color:#EF9F27; }
+    .share.bad  { background:#e24b4a14; border-color:#e24b4a40; } .share.bad  .share-num { color:#E24B4A; }
+
     .wl-bar-wrap { height: 5px; background: var(--bar-bg); border-radius: 3px; overflow: hidden; }
     .wl-bar { height: 100%; border-radius: 3px; }
 
@@ -99,6 +107,6 @@
     </div>
     <div class="panel" id="p-orphans" style="margin-top:12px"><div class="panel-title">Влётные задачи (без проекта)</div><div class="spinner"></div></div>
   </div>
-  <script src="../js/dashboard.js?v=4"></script>
+  <script src="../js/dashboard.js?v=5"></script>
 </body>
 </html>
