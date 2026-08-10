@@ -79,10 +79,85 @@ async function cardLink(boardId, text) {
   return esc(text);
 }
 
-function render() {
+/* Насколько идея вообще сформулирована.
+ *
+ * Раньше секция сразу предлагала оформить гипотезу проектом — не спрашивая,
+ * есть ли у неё ожидаемый эффект и способ проверки. Так в портфель уезжает
+ * заголовок без критерия успеха, и дальше его уже никто не допишет.
+ * Не блокируем (запреты обходят), но показываем, чего не хватает.
+ */
+const H = { effect: 'Ожидаемый эффект', check: 'Как проверим',
+            impact: 'Влияние', cost: 'Стоимость проверки' };
+
+function readProp(defs, c, name) {
+  const d = (defs || []).find((p) => p.name === name);
+  if (!d) return null;
+  const raw = (c.properties || {})[`id_${d.id}`];
+  if (raw == null) return null;
+  if (Array.isArray(raw)) {
+    const v = (d.values || []).find((x) => x.id === raw[0] || x.uid === raw[0]);
+    return v ? (v.value || v.display_value) : null;
+  }
+  return raw;
+}
+
+// Высокое влияние при дешёвой проверке — то, что берут первым.
+// Дорогая проверка низкого влияния — то, что не берут никогда.
+function priorityHint(impact, cost) {
+  if (!impact || !cost) return '';
+  const hi = /Высокое/.test(impact), cheap = /Дёшево/.test(cost), dear = /Дорого/.test(cost);
+  if (hi && cheap) return { cls: 'ok',   text: 'Высокое влияние и дешёвая проверка — такие берут первыми.' };
+  if (hi && dear)  return { cls: 'warn', text: 'Влияние высокое, но проверка дорогая — подумайте, как проверить дешевле.' };
+  if (!hi && dear) return { cls: 'bad',  text: 'Дорогая проверка при невысоком влиянии — стоит ли вообще?' };
+  return { cls: 'ok', text: '' };
+}
+
+function render(defs, full) {
+  const vals = {
+    effect: readProp(defs, full, H.effect),
+    check:  readProp(defs, full, H.check),
+    impact: readProp(defs, full, H.impact),
+    cost:   readProp(defs, full, H.cost),
+  };
+  const rows = [
+    ['effect', 'Ожидаемый эффект',   'что изменится и на сколько'],
+    ['check',  'Как проверим',       'эксперимент или метрика'],
+    ['impact', 'Влияние',            'насколько это важно'],
+    ['cost',   'Стоимость проверки', 'во что обойдётся проверить'],
+  ];
+  const filled = rows.filter(([k]) => vals[k]).length;
+
+  const checklist = rows.map(([k, label, hintText]) => `
+    <div class="task">
+      <span class="tick">${vals[k] ? '✓' : ''}</span>
+      <span class="t-title">${esc(label)}${vals[k]
+        ? `: <b>${esc(vals[k])}</b>`
+        : ` <span class="muted">— ${esc(hintText)}</span>`}</span>
+    </div>`).join('');
+
+  const hint = priorityHint(vals.impact, vals.cost);
+  const hintHtml = hint && hint.text
+    ? `<div class="card ${hint.cls === 'ok' ? '' : 'warn-box'}"><div class="muted">${esc(hint.text)}</div></div>`
+    : '';
+
+  // Проектом оформляем только то, что описано: у проекта должен быть критерий.
+  const notReady = !vals.effect || !vals.check;
+  const warn = notReady ? `
+    <div class="card warn-box">
+      <div class="muted">Не хватает ${!vals.effect ? '«ожидаемого эффекта»' : ''}${
+        !vals.effect && !vals.check ? ' и ' : ''}${!vals.check ? '«как проверим»' : ''}.
+      Без этого проект уедет в портфель без критерия успеха — и там останется.</div>
+    </div>` : '';
+
   root.innerHTML = `
+    <div class="card">
+      <div class="card-title">💡 Идея <span class="cnt">${filled} из 4 заполнено</span></div>
+      ${checklist}
+    </div>
+    ${hintHtml}
+    ${warn}
     <p class="convert-lead">Идея прошла проверку? Оформите её — карточка станет
-    проектом или задачей, описание сохранится.</p>
+    проектом или задачей, описание и поля сохранятся.</p>
     <div class="convert-btns">
       <button class="primary" id="to-project">🚀 Оформить проектом</button>
       <button class="primary ghost" id="to-task">📋 Оформить задачей</button>
@@ -130,7 +205,12 @@ async function convert(kind) {
   try {
     await ensureAuth();
     card = await iframe.getCard();
-    render();
+    // getCard() в секции не отдаёт .properties — значения полей читаем через API.
+    const [defs, full] = await Promise.all([
+      api.get('/api/v1/company/custom-properties?limit=200'),
+      api.get(`/api/v1/cards/${card.id}`),
+    ]);
+    render(defs, full);
   } catch (e) {
     root.innerHTML = `<div class="muted">Не удалось загрузить: ${esc(e && e.message)}</div>`;
     iframe.fitSize('#root');
