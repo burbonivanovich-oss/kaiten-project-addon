@@ -36,17 +36,35 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=37';
+const PAGE_V = 'v=38';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
 
-// Цвета для плашек. Тут hex, а не индексы палитры Kaiten — это наша отрисовка.
+/* Цвет бейджа — ENUM, а не hex.
+ *
+ * Документация (developers.kaiten.ru/addons/capabilities/card-facade-badges)
+ * разрешает ровно три значения — green, red, orange — плюс отсутствие ключа
+ * для цвета по умолчанию. Здесь раньше стояли hex-коды и комментарий
+ * «это наша отрисовка»: предположение оказалось неверным, отрисовка не наша.
+ * Kaiten молча не рисовал такие бейджи — на доске портфеля не появлялось
+ * НИ ОДНОГО, включая те, у которых цвета не было вовсе.
+ *
+ * Ключ color не ставим вообще, если цвет нейтральный: undefined в значении и
+ * отсутствие ключа — не одно и то же для валидатора.
+ */
+const BADGE_GREEN = 'green', BADGE_RED = 'red', BADGE_ORANGE = 'orange';
+
 const STATUS_COLOR = {
-  'В плане': '#1D9E75',
-  'Отстаёт': '#EF9F27',
-  'Критичные проблемы': '#E24B4A',
+  'В плане': BADGE_GREEN,
+  'Отстаёт': BADGE_ORANGE,
+  'Критичные проблемы': BADGE_RED,
 };
+
+// Собирает бейдж, опуская color, когда он не задан.
+function badge(text, color) {
+  return color ? { text, color } : { text };
+}
 
 // Настройки пространства поверх дефолтов. getSettings отдаёт МАССИВ
 // (по пространствам, [0] — текущее); может быть пуст — тогда живём на дефолтах.
@@ -140,8 +158,9 @@ var initResult = Addon.initialize({
     if (isTask(cfg, card)) {
       const badges = [];
       // parent_id Kaiten не заполняет никогда — привязка видна в parents_count.
-      if (card.parents_count) badges.push({ text: '📁 Проект', color: '#3b5bdb' });
-      if (card.estimate_workload) badges.push({ text: card.estimate_workload + ' ч' });
+      // Синего в палитре бейджей нет, поэтому просто без цвета.
+      if (card.parents_count) badges.push(badge('📁 Проект'));
+      if (card.estimate_workload) badges.push(badge(card.estimate_workload + ' ч'));
       return badges;
     }
 
@@ -149,7 +168,7 @@ var initResult = Addon.initialize({
     if (isGoal(cfg, card)) {
       const { done, total, pct } = progress(card);
       if (!total) return [];
-      return [{ text: `${done}/${total} проектов · ${pct}%` }];
+      return [badge(`${done}/${total} проектов · ${pct}%`)];
     }
 
     if (!isProject(cfg, card)) return [];
@@ -161,11 +180,11 @@ var initResult = Addon.initialize({
     const silent = silentDays(card);
 
     const badges = [];
-    if (total) badges.push({ text: `${pct}% · ${done}/${total}` });
+    if (total) badges.push(badge(`${pct}% · ${done}/${total}`));
 
     // тухнущий проект видно с доски: комментариев не было дольше порога
     if (silent != null && silent >= cfg.silent_days && card.state !== 3) {
-      badges.push({ text: `🔇 молчим ${silent} дн`, color: '#E24B4A' });
+      badges.push(badge(`🔇 молчим ${silent} дн`, BADGE_RED));
     }
 
     // Авто-эскалация: объективный сигнал о риске независимо от ручного статуса
@@ -178,11 +197,11 @@ var initResult = Addon.initialize({
         const timePct = Math.min(Math.round(((now - start) / totalMs) * 100), 100);
         const gap = timePct - pct;
         if (now > due && pct < 100) {
-          badges.push({ text: `🚨 просрочен`, color: '#E24B4A' });
+          badges.push(badge('🚨 просрочен', BADGE_RED));
         } else if (gap >= 40) {
-          badges.push({ text: `⏰ план ${timePct}% · факт ${pct}%`, color: '#E24B4A' });
+          badges.push(badge(`⏰ план ${timePct}% · факт ${pct}%`, BADGE_RED));
         } else if (gap >= 20) {
-          badges.push({ text: `⏰ ${timePct}% срока → ${pct}%`, color: '#EF9F27' });
+          badges.push(badge(`⏰ ${timePct}% срока → ${pct}%`, BADGE_ORANGE));
         }
       }
     }
@@ -190,7 +209,7 @@ var initResult = Addon.initialize({
     // Статус — последним и «мягко»: если мост свойств не ответит, доска
     // всё равно покажет процент, «молчим» и эскалацию.
     const status = await softProp(ctx, card, F.status);
-    if (status) badges.unshift({ text: status, color: STATUS_COLOR[status] || '#888780' });
+    if (status) badges.unshift(badge(status, STATUS_COLOR[status]));
 
     dbg('badges result ' + badges.length);
     return badges;
