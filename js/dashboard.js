@@ -291,7 +291,8 @@ async function init() {
   const now = new Date().toLocaleString('ru', { day:'numeric', month:'short', hour:'2-digit', minute:'2-digit' });
   document.getElementById('updated').textContent = `обновлено ${now}`;
 
-  iframe.fitSize('#shell');
+  // rAF: к следующему кадру разметка уже применена, иначе меряем старую высоту.
+  requestAnimationFrame(() => { try { iframe.fitSize('#shell'); } catch (e) {} });
 }
 
 init().catch(e => {

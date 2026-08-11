@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=32';
+const PAGE_V = 'v=33';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -272,7 +272,7 @@ var initResult = Addon.initialize({
       buttons.push({
         text: '📋 Сводка для руководства',
         callback: (c) => c.openDialog({
-          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'md',
+          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'lg',
         }),
       });
     }
@@ -282,13 +282,14 @@ var initResult = Addon.initialize({
       buttons.push({
         text: '📋 Дашборд команды',
         callback: (c) => c.openDialog({
-          title: 'Дашборд команды', url: pageUrl('dashboard.html'), width: 'lg',
+          // Дашборд самодостаточен и данных в нём много — открываем во весь экран.
+          title: 'Дашборд команды', url: pageUrl('dashboard.html'), fullScreen: true,
         }),
       });
       buttons.push({
         text: '📊 Загруженность команды',
         callback: (c) => c.openDialog({
-          title: 'Загруженность команды', url: pageUrl('workload.html'), width: 'lg',
+          title: 'Загруженность команды', url: pageUrl('workload.html'), width: 'xl',
         }),
       });
     }

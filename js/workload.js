@@ -102,6 +102,11 @@ function aggregate(tasks, groupKey) {
   return [...map.values()].sort((a, b) => b.hours - a.hours);
 }
 
+// Пересчёт размера окна. Через rAF — иначе меряем высоту до перерисовки.
+function fit() {
+  requestAnimationFrame(() => { try { iframe.fitSize('.shell'); } catch (e) {} });
+}
+
 function dotClass(status) {
   return STATUS_DOT[status] || 'dot-backlog';
 }
@@ -195,6 +200,7 @@ function esc(s) {
 
 window.toggle = function(head) {
   head.nextElementSibling.classList.toggle('open');
+  fit();
 };
 
 window.goToProject = function(cardId) {
@@ -231,10 +237,11 @@ async function init() {
       document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+      fit();
     });
   });
 
-  iframe.fitSize('.shell');
+  fit();
 }
 
 init().catch(e => {
