@@ -53,7 +53,11 @@ async function ensureAuth() {
 }
 
 /* Доски команд = доски пространства функцзон + доски всех его подпространств.
-   Группируем по пространству, чтобы в списке было видно, чья это доска. */
+   Группируем по пространству, чтобы в списке было видно, чья это доска.
+
+   Доски всех пространств спрашиваем ОДНИМ заходом. Последовательный обход стоил
+   по запросу на каждое подпространство, и форма ждала их все подряд — на живом
+   аккаунте это давало около двадцати секунд до появления списка команд. */
 async function loadTeamBoards(spaceId) {
   const spaces = await api.get('/api/v1/spaces');
   const root = (spaces || []).find((s) => s.id === spaceId);
@@ -64,54 +68,80 @@ async function loadTeamBoards(spaceId) {
       if (s.parent_entity_uid && root.uid && s.parent_entity_uid === root.uid) targets.push(s);
     }
   }
-  const groups = [];
-  for (const s of targets) {
+  const groups = await Promise.all(targets.map(async (s) => {
     try {
       const boards = await api.get(`/api/v1/spaces/${s.id}/boards`);
-      if (boards && boards.length) groups.push({ space: s.title, spaceId: s.id, boards });
-    } catch (e) { /* пространство без доступа — пропускаем */ }
-  }
-  return groups;
+      return (boards && boards.length) ? { space: s.title, spaceId: s.id, boards } : null;
+    } catch (e) { return null; /* пространство без доступа — пропускаем */ }
+  }));
+  return groups.filter(Boolean);
 }
 
 async function init() {
   await ensureAuth();
   const card = await iframe.getCard();
 
-  // срок проекта — потолок для задачи (правило «задача не длиннее проекта»)
-  let projectDue = null;
-  try {
-    const full = await api.get(`/api/v1/cards/${card.id}`);
-    projectDue = full && full.due_date ? full.due_date : null;
-  } catch (e) { /* без потолка — просто не ограничиваем */ }
-
+  const sel = document.getElementById('board');
+  const respSel = document.getElementById('responsible');
   const dueInput = document.getElementById('due');
+
+  /* Показываем форму ДО загрузки справочников.
+   *
+   * Раньше fitSize стоял в самом конце init, после всех запросов. До него
+   * модалка не получала высоту, и пользователь двадцать секунд смотрел на
+   * пустой серый прямоугольник — без единого слова о том, что идёт загрузка.
+   * Теперь форма на экране сразу, а незаполненные списки честно говорят,
+   * что они грузятся. */
+  sel.innerHTML = '<option value="">— загружаю команды… —</option>';
+  sel.disabled = true;
+  iframe.fitSize('#f');
+
+  // Настройки, срок проекта и доски команд не зависят друг от друга —
+  // спрашиваем разом, а не по цепочке.
+  const cfgSpacePromise = (async () => {
+    try {
+      const all = await iframe.getSettings();
+      const s = (Array.isArray(all) ? all[0] : all) || {};
+      if (s.functions_space_id) return Number(s.functions_space_id);
+    } catch (e) { /* дефолт */ }
+    return DEFAULT_FUNCTIONS_SPACE_ID;
+  })();
+
+  const duePromise = (async () => {
+    try {
+      const full = await api.get(`/api/v1/cards/${card.id}`);
+      return full && full.due_date ? full.due_date : null;
+    } catch (e) { return null; /* без потолка — просто не ограничиваем */ }
+  })();
+
+  const [projectDue, groups] = await Promise.all([
+    duePromise,
+    cfgSpacePromise.then(loadTeamBoards),
+  ]);
+
+  // срок проекта — потолок для задачи (правило «задача не длиннее проекта»)
   if (projectDue) {
     const d = new Date(projectDue);
-    const iso = d.toISOString().slice(0, 10);
-    dueInput.max = iso;
+    dueInput.max = d.toISOString().slice(0, 10);
     document.getElementById('due-hint').textContent =
       `— не позже ${d.toLocaleDateString('ru')} (срок проекта)`;
   }
 
-  // список команд
-  let cfgSpace = DEFAULT_FUNCTIONS_SPACE_ID;
-  try {
-    const all = await iframe.getSettings();
-    const s = (Array.isArray(all) ? all[0] : all) || {};
-    if (s.functions_space_id) cfgSpace = Number(s.functions_space_id);
-  } catch (e) { /* дефолт */ }
-
-  const sel = document.getElementById('board');
-  const respSel = document.getElementById('responsible');
-  const groups = await loadTeamBoards(cfgSpace);
-
   // board_id → space_id для подгрузки участников команды
   const boardToSpace = {};
 
+  sel.disabled = false;
   if (!groups.length) {
     sel.innerHTML = '<option value="">— досок команд не найдено —</option>';
   } else {
+    /* Первым пунктом — пустой.
+     *
+     * Без него браузер выбирал первую доску по алфавиту, и обязательное поле
+     * оказывалось молча заполнено произвольной командой: невнимательный
+     * машинист отправлял задачу не туда. Заодно это чинит подсказку о
+     * загрузке и список «Кому» — они заполняются по событию change, которого
+     * при предвыбранном значении не происходило вовсе. */
+    sel.innerHTML = '<option value="">— выберите команду —</option>';
     for (const g of groups) {
       const og = document.createElement('optgroup');
       og.label = g.space;
@@ -125,6 +155,7 @@ async function init() {
       sel.appendChild(og);
     }
   }
+  iframe.fitSize('#f');
 
   // При смене команды — загружаем участников и считаем загрузку параллельно
   sel.addEventListener('change', async () => {

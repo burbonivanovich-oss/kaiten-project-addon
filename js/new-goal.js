@@ -48,6 +48,8 @@ async function ensureAuth() {
 
 async function init() {
   await ensureAuth();
+  // Форма — до загрузки списка сотрудников, иначе окно стоит пустым.
+  iframe.fitSize('#f');
 
   // Список сотрудников
   const sel = document.getElementById('responsible');

@@ -87,7 +87,8 @@ async function cardLink(boardId, text) {
  * Не блокируем (запреты обходят), но показываем, чего не хватает.
  */
 const H = { effect: 'Ожидаемый эффект', check: 'Как проверим',
-            impact: 'Влияние', cost: 'Стоимость проверки' };
+            impact: 'Влияние', impactVote: 'Влияние — голос команды',
+            cost: 'Стоимость проверки' };
 
 /* Значения select-полей приходится догружать отдельно.
  *
@@ -122,28 +123,113 @@ function readProp(defs, c, name) {
   return raw;
 }
 
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100, b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  return b === 1 ? one : many;
+};
+
+/* Влияние читается двумя способами — и это не временный костыль, а условие
+ * безопасного перехода.
+ *
+ * Исторически «Влияние» — select, который заполняет один человек: тот, кто
+ * завёл карточку. Несогласие команды при этом нигде не живёт. Если в компании
+ * заведено поле-голосование «Влияние — голос команды», берём его.
+ *
+ * Голоса лежат НЕ в card.properties: каждый голос — отдельная запись со своим
+ * author_id, и достать их можно только отдельным запросом. Именно поэтому
+ * чтение через readProp() для такого поля всегда вернёт null — ровно та
+ * ошибка, что уже была со значениями select, когда чек-лист считал
+ * заполненные поля пустыми.
+ *
+ * Средний балл переводим в те же три уровня, чтобы подсказка приоритета
+ * работала одинаково в обоих случаях. Порядок «сначала голосование, потом
+ * старый select» позволяет не удалять старое поле в день перехода: экран
+ * читается и до, и после, и в промежутке, когда живут оба.
+ */
+async function readImpact(api, defs, c) {
+  const voteDef = (defs || []).find((p) => p.name === H.impactVote);
+  if (voteDef) {
+    try {
+      const votes = (await api.get(
+        `/api/v1/cards/${c.id}/custom-properties/${voteDef.id}/collective-vote-values`)) || [];
+      const nums = votes.map((v) => Number(v.number_vote)).filter((n) => !Number.isNaN(n));
+      if (nums.length) {
+        const avg = nums.reduce((a, b) => a + b, 0) / nums.length;
+        // Потолок шкалы лежит в разных ключах: у варианта «рейтинг» это
+        // data.count (сколько звёзд), у «шкалы» — data.max. Сверено с живым
+        // полем: {type: collective_vote, vote_variant: rating, data:{count:5}}.
+        const d = voteDef.data || {};
+        const max = Number(d.count) || Number(d.max) || 10;
+        return {
+          text: `${avg.toFixed(1).replace('.', ',')} из ${max} · ${nums.length} ` +
+                plural(nums.length, 'голос', 'голоса', 'голосов'),
+          // Пороги уровней — доли шкалы, а не абсолютные баллы: иначе смена
+          // размерности (5 → 10) молча переехала бы смысл «высокого влияния».
+          level: avg >= max * 0.8 ? 'hi' : avg >= max * 0.5 ? 'mid' : 'lo',
+          spread: Math.max(...nums) - Math.min(...nums),
+          max,
+        };
+      }
+      return null;   // поле заведено, но никто не голосовал — считаем незаполненным
+    } catch (e) { /* не прочиталось — читаем старый select */ }
+  }
+  const sel = readProp(defs, c, H.impact);
+  if (!sel) return null;
+  return { text: sel, level: /Высокое/.test(sel) ? 'hi' : /Низкое/.test(sel) ? 'lo' : 'mid', spread: 0 };
+}
+
 // Высокое влияние при дешёвой проверке — то, что берут первым.
 // Дорогая проверка низкого влияния — то, что не берут никогда.
 function priorityHint(impact, cost) {
   if (!impact || !cost) return '';
-  const hi = /Высокое/.test(impact), cheap = /Дёшево/.test(cost), dear = /Дорого/.test(cost);
+  const hi = impact.level === 'hi', cheap = /Дёшево/.test(cost), dear = /Дорого/.test(cost);
   if (hi && cheap) return { cls: 'ok',   text: 'Высокое влияние и дешёвая проверка — такие берут первыми.' };
   if (hi && dear)  return { cls: 'warn', text: 'Влияние высокое, но проверка дорогая — подумайте, как проверить дешевле.' };
   if (!hi && dear) return { cls: 'bad',  text: 'Дорогая проверка при невысоком влиянии — стоит ли вообще?' };
   return { cls: 'ok', text: '' };
 }
 
-function render(defs, full) {
+/* Разброс голосов важнее среднего.
+ *
+ * Если половина команды поставила максимум, а половина минимум, среднее выйдет
+ * ровно посередине и будет выглядеть как согласованное «среднее влияние». Это
+ * худший из возможных выводов: спорную идею нельзя ни брать молча, ни молча
+ * отбрасывать — про неё надо поговорить.
+ *
+ * Порог — ДОЛЯ шкалы, а не число баллов. На пятибалльной разброс в 3 балла это
+ * почти полярные мнения, на десятибалльной — обычное несовпадение оттенков.
+ * Зашитое число молча меняло бы чувствительность при смене размерности.
+ *
+ * Половина шкалы: на пяти баллах срабатывает от 3 (5 против 2 — спор), на
+ * десяти от 5. Доля поменьше сделала бы блок болтливым: на пятибалльной
+ * порог упал бы до 2, а «4 и 2» — это ещё не разногласие. */
+const SPREAD_SHARE = 0.5;
+
+function spreadHint(impact) {
+  if (!impact || !impact.spread) return '';
+  if (impact.spread < (impact.max || 10) * SPREAD_SHARE) return '';
+  return `<div class="card warn-box"><div class="muted">Голоса разошлись сильно
+    (разброс ${impact.spread} ${plural(impact.spread, 'балл', 'балла', 'баллов')}
+    из ${impact.max}). Среднее тут мало что значит — стоит обсудить, почему
+    видят по-разному.</div></div>`;
+}
+
+function render(defs, full, impact) {
+  // impact уже прочитан (он может требовать отдельного запроса за голосами) —
+  // в таблицу кладём только его текст.
   const vals = {
     effect: readProp(defs, full, H.effect),
     check:  readProp(defs, full, H.check),
-    impact: readProp(defs, full, H.impact),
+    impact: impact ? impact.text : null,
     cost:   readProp(defs, full, H.cost),
   };
+  const voting = !!(defs || []).find((p) => p.name === H.impactVote);
   const rows = [
     ['effect', 'Ожидаемый эффект',   'что изменится и на сколько'],
     ['check',  'Как проверим',       'эксперимент или метрика'],
-    ['impact', 'Влияние',            'насколько это важно'],
+    ['impact', 'Влияние',            voting ? 'команда ещё не голосовала' : 'насколько это важно'],
     ['cost',   'Стоимость проверки', 'во что обойдётся проверить'],
   ];
   const filled = rows.filter(([k]) => vals[k]).length;
@@ -156,7 +242,7 @@ function render(defs, full) {
         : ` <span class="muted">— ${esc(hintText)}</span>`}</span>
     </div>`).join('');
 
-  const hint = priorityHint(vals.impact, vals.cost);
+  const hint = priorityHint(impact, vals.cost);
   const hintHtml = hint && hint.text
     ? `<div class="card ${hint.cls === 'ok' ? '' : 'warn-box'}"><div class="muted">${esc(hint.text)}</div></div>`
     : '';
@@ -176,6 +262,7 @@ function render(defs, full) {
       ${checklist}
     </div>
     ${hintHtml}
+    ${spreadHint(impact)}
     ${warn}
     <p class="convert-lead">Идея прошла проверку? Оформите её — карточка станет
     проектом или задачей, описание и поля сохранятся.</p>
@@ -225,6 +312,10 @@ async function convert(kind) {
 (async () => {
   try {
     await ensureAuth();
+    // При уже выданном токене ensureAuth выходит молча — без этой строки
+    // секция стояла пустой всё время загрузки полей и голосов.
+    root.innerHTML = '<div class="muted">Читаю поля идеи…</div>';
+    iframe.fitSize('#root');
     card = await iframe.getCard();
     // getCard() в секции не отдаёт .properties — значения полей читаем через API.
     const [defs, full] = await Promise.all([
@@ -232,7 +323,10 @@ async function convert(kind) {
       api.get(`/api/v1/cards/${card.id}`),
     ]);
     await loadSelectValues(api, defs, [H.impact, H.cost]);
-    render(defs, full);
+    // Голоса — отдельный запрос, но только если поле-голосование заведено:
+    // на старой схеме readImpact лишних обращений не делает.
+    const impact = await readImpact(api, defs, full);
+    render(defs, full, impact);
   } catch (e) {
     root.innerHTML = `<div class="muted">Не удалось загрузить: ${esc(e && e.message)}</div>`;
     iframe.fitSize('#root');

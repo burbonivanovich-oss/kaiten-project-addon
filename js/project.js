@@ -141,10 +141,30 @@ function systemSignals(card, pct, total) {
     raise(LEVEL.warn);
   }
 
-  const silent = daysAgo(card.comment_last_added_at || card.created);
-  if (silent != null && silent > 14) {
-    items.push({ lvl: 'warn', text: `Без отчёта ${silent} дн` });
+  /* Молчание. Считаем от последнего комментария; если комментариев не было
+   * вовсе — говорим именно это, а не подставляем дату создания под видом
+   * даты отчёта. Разница существенная: «без отчёта 20 дн» и «не отчитывались
+   * ни разу» требуют разного разговора. */
+  const age = daysAgo(card.created_at || card.created);
+  const reported = daysAgo(card.comment_last_added_at);
+  if (reported != null && reported > 14) {
+    items.push({ lvl: 'warn', text: `Без отчёта ${reported} дн` });
     raise(LEVEL.warn);
+  } else if (reported == null && age != null && age > 14) {
+    items.push({ lvl: 'warn', text: `Отчётов не было ни разу, проект идёт ${age} дн` });
+    raise(LEVEL.warn);
+  }
+
+  /* Ноль сделанного при живом проекте.
+   *
+   * Правило темпа в начале проекта всегда говорит «в темпе»: срока прошло
+   * мало, разрыв маленький. Из-за этого проект с нулём закрытых задач висел
+   * зелёным ровно в те недели, когда вмешаться дешевле всего. Этот сигнал от
+   * темпа не зависит — он про то, что работа не тронулась. */
+  if (total && !pct && age != null && age >= 7 && card.state !== 3) {
+    items.push({ lvl: age >= 21 ? 'bad' : 'warn',
+                 text: `Проект идёт ${age} дн, не закрыто ни одной из ${total} задач` });
+    raise(age >= 21 ? LEVEL.bad : LEVEL.warn);
   }
 
   return { level, cls: LEVEL_NAME[level], items };
@@ -158,18 +178,24 @@ const signalsCard = (sys) => `
     `).join('')}
   </div>`;
 
-// Ручной статус — это доклад, а не факт. Показываем как доклад, с датой.
-function reportedCard(status, silent) {
+/* Ручной статус — это доклад, а не факт. Показываем как доклад, с датой.
+ *
+ * Дату берём ТОЛЬКО из последнего комментария. Раньше здесь работал общий
+ * silent, у которого есть запасной вариант «дата создания карточки», и на
+ * проекте без единого комментария блок писал «обновлено 3 дн назад» — про
+ * доклад, которого никогда не было. Выдуманная свежесть хуже её отсутствия:
+ * ровно на неё смотрит тот, кто решает, доверять ли светофору. */
+function reportedCard(status, reportedDays) {
   const cls = STATUS_CLASS[status] || '';
-  const when = silent == null ? 'дата неизвестна'
-    : silent === 0 ? 'сегодня' : `${silent} дн назад`;
+  const when = reportedDays == null ? 'отчётов ещё не было'
+    : reportedDays === 0 ? 'обновлено сегодня' : `обновлено ${reportedDays} дн назад`;
   return `
     <div class="card">
       <div class="card-title">📣 Докладывает машинист</div>
       <div class="task">
         <span class="dot ${cls}"></span>
         <span class="t-title"><b>${esc(status)}</b></span>
-        <span class="due">обновлено ${when}</span>
+        <span class="due">${when}</span>
       </div>
     </div>`;
 }
@@ -276,6 +302,9 @@ async function extendedBlocks(card) {
   const blocks = `
     <div class="card">
       <div class="card-title">✅ Задачи по командам <span class="cnt">${done} / ${total}</span></div>
+      <div class="load-foot" style="margin:-2px 0 8px">Поле «Готовность, %» выше в
+      карточке считает по-своему — это формула Kaiten, убрать её из карточки нельзя.
+      Здесь — доля закрытых задач, то же число, что в шапке секции.</div>
       ${Object.keys(byBoard).length === 0
         ? '<div class="muted">Задач пока нет. Заведите их на досках команд и укажите этот проект родителем.</div>'
         : Object.entries(byBoard).map(([board, list]) => `
@@ -284,11 +313,19 @@ async function extendedBlocks(card) {
               list.filter(isDone).length} / ${list.length}</span></div>
             ${list.map((c) => {
               const cdone = isDone(c);
+              // Просроченная задача рисовалась тем же серым, что и остальные:
+              // на живом проекте одна такая пролежала одиннадцать дней, и
+              // ни на доске, ни здесь её ничто не выделяло.
+              const late = !cdone && c.due_date && new Date(c.due_date) < new Date();
+              const lateDays = late
+                ? Math.floor((Date.now() - new Date(c.due_date).getTime()) / 86400000) : 0;
               return `
               <div class="task ${cdone ? 'done' : ''}">
                 <span class="tick">${cdone ? '✓' : ''}</span>
                 <span class="t-title">${esc(c.title)}</span>
-                ${c.due_date ? `<span class="due">${new Date(c.due_date).toLocaleDateString('ru')}</span>` : ''}
+                ${c.due_date ? `<span class="due${late ? ' late' : ''}">${
+                  late ? `🚨 просрочена ${lateDays} дн`
+                       : new Date(c.due_date).toLocaleDateString('ru')}</span>` : ''}
               </div>`; }).join('')}
           </div>`).join('')}
     </div>
@@ -326,7 +363,9 @@ async function render() {
   const done = card.children_done || 0;
   const pct = total ? Math.round((done / total) * 100) : 0;
 
-  const silent = daysAgo(card.comment_last_added_at || card.created);
+  // Только реальные комментарии: null здесь означает «отчётов не было»,
+  // и блок доклада скажет именно это, а не подставит возраст карточки.
+  const reportedDays = daysAgo(card.comment_last_added_at);
   const due = card.due_date ? `срок ${new Date(card.due_date).toLocaleDateString('ru')}` : 'срок не задан';
 
   // Хиро ведёт системным сигналом, а не ручным статусом: цвет должен отражать
@@ -347,7 +386,7 @@ async function render() {
     // рядом с системными сигналами, а не поверх них.
     if (ext.status) {
       document.getElementById('reported').innerHTML =
-        reportedCard(ext.status, silent) + mismatchBox(ext.status, sys);
+        reportedCard(ext.status, reportedDays) + mismatchBox(ext.status, sys);
     }
     document.getElementById('ext').innerHTML = ext.metricHtml + ext.blocks;
   } else {

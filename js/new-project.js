@@ -124,6 +124,9 @@ async function setupTasksBoard(boardId) {
 
 async function init() {
   await ensureAuth();
+  // Форма — до загрузки списка сотрудников: иначе окно стоит пустым, пока
+  // не ответит /company/users.
+  iframe.fitSize('#f');
 
   // Заполняем список сотрудников
   const sel = document.getElementById('responsible');

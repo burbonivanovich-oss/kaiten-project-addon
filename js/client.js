@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=35';
+const PAGE_V = 'v=37';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -102,6 +102,24 @@ async function propValue(ctx, card, name) {
   return readVal(props, card, name);
 }
 
+/* Чтение свойства для БЕЙДЖЕЙ — отдельно и «мягко».
+ *
+ * getCardProperties() в контексте секции бросает «Unknown subject» (см. коммент
+ * в card_body_section). В контексте бейджей он вёл себя так же: на живой доске
+ * не появлялось НИ ОДНОГО бейджа — ни статуса, ни процента, ни «молчим», хотя
+ * последние два считаются из самой карточки и свойств не требуют. Причина в
+ * том, что статус читался ПЕРВЫМ, а общий catch возвращал пустой список,
+ * унося с собой всё остальное.
+ *
+ * Поэтому: своя обёртка, свой catch и таймаут. Зависший мост тоже не должен
+ * стоить доске всех бейджей — лучше доска без статуса, чем доска без ничего. */
+function softProp(ctx, card, name, ms) {
+  return Promise.race([
+    propValue(ctx, card, name).catch(() => null),
+    new Promise((resolve) => setTimeout(() => resolve(null), ms || 2500)),
+  ]).catch(() => null);
+}
+
 function silentDays(card) {
   const iso = card.comment_last_added_at || card.created;
   if (!iso) return null;
@@ -136,13 +154,13 @@ var initResult = Addon.initialize({
 
     if (!isProject(cfg, card)) return [];
 
-    // ПРОЕКТ — статус, прогресс, «молчим»
+    // ПРОЕКТ — статус, прогресс, «молчим».
+    // Порядок сборки важен: сначала всё, что считается из самой карточки,
+    // и только потом статус, за которым надо идти к мосту.
     const { done, total, pct } = progress(card);
     const silent = silentDays(card);
-    const status = await propValue(ctx, card, F.status);
 
     const badges = [];
-    if (status) badges.push({ text: status, color: STATUS_COLOR[status] || '#888780' });
     if (total) badges.push({ text: `${pct}% · ${done}/${total}` });
 
     // тухнущий проект видно с доски: комментариев не было дольше порога
@@ -169,6 +187,11 @@ var initResult = Addon.initialize({
       }
     }
 
+    // Статус — последним и «мягко»: если мост свойств не ответит, доска
+    // всё равно покажет процент, «молчим» и эскалацию.
+    const status = await softProp(ctx, card, F.status);
+    if (status) badges.unshift({ text: status, color: STATUS_COLOR[status] || '#888780' });
+
     dbg('badges result ' + badges.length);
     return badges;
     } catch (e) { dbg('badges ERROR ' + (e && e.message)); return []; }
@@ -188,21 +211,27 @@ var initResult = Addon.initialize({
         // сам iframe секции (project.js) своими SDK-методами.
         return [{
           title: 'Ход проекта',
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html')), height: 460 },
+          // Высота ЗАЯВЛЕННАЯ, а не итоговая: fitSize внутри iframe её потом
+          // подгоняет. Но пока он не сработал, лишнее обрезается без полосы
+          // прокрутки — на живом проекте с семью задачами при height:460
+          // «Задачи по командам» показывали заголовок и ни одной строки.
+          // Ставим с запасом: пустое место внизу дешевле невидимого списка.
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('project.html')), height: 900 },
         }];
       }
       if (isGoal(cfg, card) || isDirection(cfg, card)) {
         return [{
           title: isDirection(cfg, card) ? 'Сводка направления' : 'Проекты этой цели',
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('goal.html')), height: 420 },
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('goal.html')), height: 620 },
         }];
       }
       if (isHypothesis(cfg, card)) {
         // конвертация идеи в проект или задачу
         return [{
           title: 'Оформить идею',
-          // 240 хватало на две кнопки; теперь сверху чек-лист формулировки.
-          content: { type: 'iframe', url: ctx.signUrl(pageUrl('convert.html')), height: 460 },
+          // 240 хватало на две кнопки; теперь сверху чек-лист формулировки,
+          // а под ним могут встать сразу две плашки — приоритет и разброс голосов.
+          content: { type: 'iframe', url: ctx.signUrl(pageUrl('convert.html')), height: 620 },
         }];
       }
       dbg('body: not our type');

@@ -150,6 +150,11 @@ async function buildText() {
 
 async function render() {
   await ensureAuth();
+  // Гейт рисует своё сообщение, но при уже выданном токене ensureAuth выходит
+  // молча — и до конца сбора сводки экран оставался пустым. Говорим, что
+  // работаем, и сразу просим высоту.
+  root.innerHTML = '<div class="muted">Собираю сводку…</div>';
+  iframe.fitSize('#root');
   const text = await buildText();
 
   root.innerHTML = `

@@ -81,6 +81,10 @@ const bar = (pct, cls) =>
 
 async function render() {
   await ensureAuth();
+  // При уже выданном токене ensureAuth выходит молча, и до конца загрузки
+  // секция стояла пустой. Показываем, что работаем, и просим высоту сразу.
+  root.innerHTML = '<div class="muted">Загружаю проекты цели…</div>';
+  iframe.fitSize('#root');
   const card = await iframe.getCard();
 
   // getCard() в секции отдаёт карточку без .properties — саму цель тянем из API,

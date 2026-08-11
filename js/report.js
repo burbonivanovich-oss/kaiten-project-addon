@@ -84,6 +84,10 @@ async function ensureAuth() {
 
 async function init() {
   await ensureAuth();
+  // Форму показываем ДО загрузки справочников. Пока fitSize стоял только в
+  // конце init, модалка не получала высоту и всё это время была пустым серым
+  // прямоугольником — без единого слова о том, что идёт загрузка.
+  iframe.fitSize('#report');
   card = await iframe.getCard();
   defs = await api.get('/api/v1/company/custom-properties?limit=200');
   await loadSelectValues(api, defs, [F.status, F.metric]);

@@ -128,6 +128,9 @@ body {
 .task.done .t-title { color: var(--muted); }       /* без зачёркивания — галочки хватает */
 .t-title { flex: 1; }
 .due { color: var(--muted); font-size: 11.5px; font-variant-numeric: tabular-nums; }
+/* Просрочка — единственное состояние срока, ради которого стоит ломать
+   серый: её надо увидеть, не вчитываясь в даты. */
+.due.late { color: #E24B4A; font-weight: 600; white-space: nowrap; }
 
 /* ── история статусов ── */
 .hist { display: flex; gap: 12px; font-size: 13px; padding: 5px 0; color: var(--fg-2); }

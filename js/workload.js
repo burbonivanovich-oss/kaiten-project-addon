@@ -211,6 +211,13 @@ window.goToProject = function(cardId) {
 async function init() {
   await ensureAuth();
 
+  /* fetchTasks обходит все проекты и все доски команд по очереди — это
+     десятки запросов. Пока fit() стоял только в конце, всё это время окно
+     было пустым. Говорим, что считаем, и просим высоту сразу. */
+  document.getElementById('panel-people').innerHTML =
+    '<div class="empty">Считаю загрузку по всем проектам и командам…</div>';
+  fit();
+
   const tasks = await fetchTasks();
   const byPerson  = aggregate(tasks, 'person');
   const byProject = aggregate(tasks, 'project');
