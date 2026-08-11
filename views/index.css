@@ -77,10 +77,11 @@ body {
                    letter-spacing: 0; text-transform: none; font-size: 12px; }
 
 /* ── строка-метрика внутри карточки ── */
-.metric { display: flex; align-items: center; gap: 12px; }
+.metric { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; }
+.metric .grow { flex: 1 1 100%; order: 3; }   /* полоса под подписью, а не рядом */
 .metric + .metric { margin-top: 12px; }
-.metric-label { width: 130px; flex: none; font-size: 13px; color: var(--fg-2);
-                overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.metric-label { flex: 1 1 auto; min-width: 120px; font-size: 13px; color: var(--fg-2);
+               overflow: hidden; text-overflow: ellipsis; }
 .metric-num { width: 92px; flex: none; text-align: right; font-size: 13px; color: var(--muted);
               font-variant-numeric: tabular-nums; }
 .metric-num b { color: var(--fg); font-size: 14px; }

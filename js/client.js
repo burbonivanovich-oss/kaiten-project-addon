@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=34';
+const PAGE_V = 'v=35';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -228,64 +228,40 @@ var initResult = Addon.initialize({
     const goal = isGoal(cfg, card);
     const dir = isDirection(cfg, card);
 
-    // Формы открываем ЦЕНТРИРОВАННОЙ МОДАЛКОЙ (openDialog), а не openPopup:
-    // попап прибит к кнопке, имеет фиксированную высоту и режет контент.
-    if (proj && canWrite) {
-      // Главная кнопка проекта: задача заводится СРАЗУ на доску команды и в тот же
-      // момент привязывается к проекту — связь нельзя забыть, а значит не рассыплются
-      // % готовности, «задачи по командам» и загрузка.
-      buttons.push({
-        text: '➕ Задача команде',
-        callback: (c) => c.openDialog({
-          title: 'Задача команде', url: pageUrl('new-task.html'), width: 'sm',
-        }),
-      });
-      buttons.push({
-        text: '📝 Отчёт за 2 недели',
-        callback: (c) => c.openDialog({
-          title: 'Отчёт по проекту', url: pageUrl('report.html'), width: 'sm',
-        }),
-      });
-    }
+    /* Действия разложены по уровням, а не свалены в один ряд.
+     *
+     * Было шесть равнозначных кнопок на проекте: главное действие не отличалось
+     * от редкого, а «Создать проект» вообще не относится к текущему проекту.
+     * Теперь на карточке не больше трёх, и каждая отвечает роли этого уровня:
+     *   проект (машинист)  — поставить задачу, отчитаться, посмотреть загрузку;
+     *   цель (куратор)     — завести проект, свести для руководства, обзор;
+     *   направление        — только чтение.
+     *
+     * Формы открываем ЦЕНТРИРОВАННОЙ МОДАЛКОЙ (openDialog), а не openPopup:
+     * попап прибит к кнопке, имеет фиксированную высоту и режет контент.
+     */
 
-    if (goal && canWrite) {
-      // цель-родитель предзаполнена — заведение проекта прямо с цели
-      buttons.push({
-        text: '➕ Проект к этой цели',
-        callback: (c) => c.openDialog({
-          title: 'Новый проект', url: pageUrl('new-project.html', 'goal=' + card.id),
-          width: 'sm',
-        }),
-      });
-    }
-
-    if ((proj || /ШАБЛОН/.test(card.title || '')) && canWrite) {
-      buttons.push({
-        text: '🆕 Создать проект',
-        callback: (c) => c.openDialog({
-          title: 'Новый проект', url: pageUrl('new-project.html'), width: 'sm',
-        }),
-      });
-    }
-
-    if (proj || goal || dir) {
-      buttons.push({
-        text: '📋 Сводка для руководства',
-        callback: (c) => c.openDialog({
-          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'lg',
-        }),
-      });
-    }
-
-    // Загруженность команды + дашборд — на проектных/целевых/направленческих карточках
-    if (proj || goal || dir) {
-      buttons.push({
-        text: '📋 Дашборд команды',
-        callback: (c) => c.openDialog({
-          // Дашборд самодостаточен и данных в нём много — открываем во весь экран.
-          title: 'Дашборд команды', url: pageUrl('dashboard.html'), fullScreen: true,
-        }),
-      });
+    // ── ПРОЕКТ · машинист ───────────────────────────────────────────────
+    if (proj) {
+      if (canWrite) {
+        // Главное действие: задача заводится СРАЗУ на доску команды и в тот же
+        // момент привязывается к проекту — связь нельзя забыть, а значит не
+        // рассыплются % готовности, «задачи по командам» и загрузка.
+        buttons.push({
+          text: '➕ Задача команде',
+          callback: (c) => c.openDialog({
+            title: 'Задача команде', url: pageUrl('new-task.html'), width: 'sm',
+          }),
+        });
+        buttons.push({
+          text: '📝 Отчёт за 2 недели',
+          callback: (c) => c.openDialog({
+            title: 'Отчёт по проекту', url: pageUrl('report.html'), width: 'sm',
+          }),
+        });
+      }
+      // Загрузка нужна ровно перед постановкой задачи — поэтому она здесь,
+      // а не на стратегическом уровне, где ей нечего делать.
       buttons.push({
         text: '📊 Загруженность команды',
         callback: (c) => c.openDialog({
@@ -294,8 +270,62 @@ var initResult = Addon.initialize({
       });
     }
 
+    // ── ЦЕЛЬ · куратор ─────────────────────────────────────────────────
+    if (goal) {
+      if (canWrite) {
+        // цель-родитель предзаполнена — заведение проекта прямо с цели
+        buttons.push({
+          text: '➕ Проект к этой цели',
+          callback: (c) => c.openDialog({
+            title: 'Новый проект', url: pageUrl('new-project.html', 'goal=' + card.id),
+            width: 'sm',
+          }),
+        });
+      }
+      buttons.push({
+        text: '📋 Сводка для руководства',
+        callback: (c) => c.openDialog({
+          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'lg',
+        }),
+      });
+      buttons.push({
+        text: '📊 Дашборд команды',
+        callback: (c) => c.openDialog({
+          // Дашборд самодостаточен и данных в нём много — открываем во весь экран.
+          title: 'Дашборд команды', url: pageUrl('dashboard.html'), fullScreen: true,
+        }),
+      });
+    }
+
+    // ── НАПРАВЛЕНИЕ · только обзор ─────────────────────────────────────
+    if (dir) {
+      buttons.push({
+        text: '📋 Сводка для руководства',
+        callback: (c) => c.openDialog({
+          title: 'Сводка для руководства', url: pageUrl('summary.html'), width: 'lg',
+        }),
+      });
+      buttons.push({
+        text: '📊 Дашборд команды',
+        callback: (c) => c.openDialog({
+          title: 'Дашборд команды', url: pageUrl('dashboard.html'), fullScreen: true,
+        }),
+      });
+    }
+
+    // Создание проекта с нуля — редкое действие, поэтому только на шаблонной
+    // карточке, а не на каждом проекте, к которому оно отношения не имеет.
+    if (/ШАБЛОН/.test(card.title || '') && canWrite) {
+      buttons.push({
+        text: '🆕 Создать проект',
+        callback: (c) => c.openDialog({
+          title: 'Новый проект', url: pageUrl('new-project.html'), width: 'sm',
+        }),
+      });
+    }
+
     // Поставить цель — на любой карточке доски «Цели» (включая шаблон «НАЧНИ ОТСЮДА»)
-    if (card.board_id === 1853658 && canWrite) {
+    if (card.board_id === 1853658 && canWrite && !goal) {
       buttons.push({
         text: '➕ Поставить цель',
         callback: (c) => c.openDialog({

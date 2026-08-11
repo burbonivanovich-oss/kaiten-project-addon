@@ -112,42 +112,66 @@ async function render() {
 
   // ДВИЖЕНИЕ К ЦЕЛИ — две РАЗНЫЕ вещи, которые старый процесс путал:
   //  • работы — сколько задач проектов закрыто (делаем ли мы дело);
-  //  • метрика — сколько из плана цели уже набрано фактом (двигает ли это цель).
+  //  • метрика — сколько из плана цели уже набрано (двигает ли это цель).
   const goalMetric = readProp(defs, self, F.metric);
   const goalPlan = Number(readProp(defs, self, F.plan)) || 0;
+
+  // Факт берём с САМОЙ цели. Раньше суммировался факт дочерних проектов — но
+  // поля «Факт» у типа «Проект» нет вовсе, поэтому сумма всегда выходила нулём,
+  // и цель с заполненным Факт 30 из План 30 показывала «0 из 30».
+  // Сумма по проектам остаётся запасным вариантом, если у цели факт не заполнен.
+  const goalFact = readProp(defs, self, F.fact);
+  const fact = goalFact != null && goalFact !== '' ? Number(goalFact) || 0 : factSum;
+
   const workPct = totalSum ? Math.round((doneSum / totalSum) * 100) : 0;
-  const metricPct = goalPlan ? Math.round((factSum / goalPlan) * 100) : null;
+  const metricPct = goalPlan ? Math.round((fact / goalPlan) * 100) : null;
 
   const heroCls = n.bad ? 'bad' : n.warn ? 'warn' : 'ok';
+
+  /* Ведущее число ровно одно.
+   *
+   * Раньше на экране цели одновременно жили три процента — «работы», «цели
+   * набрано» и формульная «Готовность, %» в полях. Куратор не мог понять,
+   * какому верить. Цель измеряется метрикой, а не количеством закрытых задач,
+   * поэтому наверх выносится метрика; работы уходят вторым планом и прямо
+   * подписаны как «делаем», а не «достигли». */
+  const leadPct   = metricPct != null ? metricPct : workPct;
+  const leadLabel = metricPct != null ? 'цель набрана' : 'задач закрыто';
+
   root.innerHTML = `
     <div class="hero ${heroCls}">
       <span class="hero-dot"></span>
       <div class="hero-main">
-        <div class="hero-status">${live.length} ${live.length === 1 ? 'проект' : 'проектов'} · работы ${workPct}%</div>
+        <div class="hero-status">${live.length} ${live.length === 1 ? 'проект' : 'проектов'} двигают цель</div>
         <div class="hero-sub">🟢 ${n.ok} · 🟡 ${n.warn} · 🔴 ${n.bad}${n[''] ? ` · ⚪ ${n['']} без статуса` : ''}</div>
       </div>
-      ${metricPct != null
-        ? `<div class="hero-pct"><b>${metricPct}%</b><span>цели набрано</span></div>`
-        : `<div class="hero-pct"><b>${workPct}%</b><span>работы</span></div>`}
+      <div class="hero-pct"><b>${leadPct}%</b><span>${leadLabel}</span></div>
     </div>
 
     <div class="card">
       <div class="card-title">🎯 Движение к цели</div>
-      <div class="metric">
-        <div class="metric-label">Работы</div>
-        <div class="grow">${bar(workPct, heroCls)}</div>
-        <div class="metric-num"><b>${doneSum}</b> из ${totalSum} задач</div>
-      </div>
       ${goalPlan ? `
       <div class="metric">
         <div class="metric-label">${esc(goalMetric || 'Метрика')}</div>
         <div class="grow">${bar(metricPct || 0, metricPct >= 100 ? 'ok' : heroCls)}</div>
-        <div class="metric-num"><b>${fmt(factSum)}</b> из ${fmt(goalPlan)}</div>
-      </div>` : `
-      <div class="load-foot">У цели не заполнен «План» по метрике — вклад проектов в цифрах не посчитать.</div>`}
-      ${goalPlan ? `<div class="load-foot">работы = закрытые задачи проектов · метрика = факт проектов к плану цели</div>` : ''}
+        <div class="metric-num"><b>${fmt(fact)}</b> из ${fmt(goalPlan)}</div>
+      </div>
+      <div class="load-foot">результат — ради него цель и ставилась</div>` : `
+      <div class="load-foot">У цели не заполнен «План» по метрике — результат в цифрах не посчитать,
+      виден только объём работ.</div>`}
+      <div class="metric">
+        <div class="metric-label">Работы по проектам</div>
+        <div class="grow">${bar(workPct, heroCls)}</div>
+        <div class="metric-num"><b>${doneSum}</b> из ${totalSum} задач</div>
+      </div>
+      <div class="load-foot">усилия — показывают, что делаем, но не что получилось</div>
+      <div class="load-foot" style="margin-top:10px">
+        Поле «Готовность, %» выше в карточке — третье, служебное число: доля
+        <b>полностью закрытых</b> проектов. Проект, сделанный наполовину, в нём не
+        виден вовсе, поэтому судить по нему о цели нельзя. Убрать его из карточки
+        Kaiten не даёт: формула считается сама.
+      </div>
     </div>
-
   `;
   iframe.fitSize('#root');
 }
