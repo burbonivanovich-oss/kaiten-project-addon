@@ -89,6 +89,27 @@ async function cardLink(boardId, text) {
 const H = { effect: 'Ожидаемый эффект', check: 'Как проверим',
             impact: 'Влияние', cost: 'Стоимость проверки' };
 
+/* Значения select-полей приходится догружать отдельно.
+ *
+ * GET /company/custom-properties отдаёт определения БЕЗ ключа values — ни один
+ * параметр (with_values, include, expand) этого не меняет, проверено. Поэтому
+ * любое чтение select через def.values молча возвращало null: статус проекта
+ * не читался, влияние и стоимость гипотезы считались незаполненными, а форма
+ * отчёта не находила id значения и не сохраняла статус вообще.
+ *
+ * Грузим только те поля, которые реально нужны экрану, и параллельно.
+ */
+async function loadSelectValues(api, defs, names) {
+  const need = (defs || []).filter((d) =>
+    names.indexOf(d.name) !== -1 &&
+    (d.type === 'select' || d.type === 'multi_select') && !d.values);
+  await Promise.all(need.map(async (d) => {
+    try { d.values = await api.get(`/api/v1/company/custom-properties/${d.id}/select-values`); }
+    catch (e) { d.values = []; }
+  }));
+  return defs;
+}
+
 function readProp(defs, c, name) {
   const d = (defs || []).find((p) => p.name === name);
   if (!d) return null;
@@ -128,7 +149,7 @@ function render(defs, full) {
   const filled = rows.filter(([k]) => vals[k]).length;
 
   const checklist = rows.map(([k, label, hintText]) => `
-    <div class="task">
+    <div class="task ${vals[k] ? 'done' : ''}">
       <span class="tick">${vals[k] ? '✓' : ''}</span>
       <span class="t-title">${esc(label)}${vals[k]
         ? `: <b>${esc(vals[k])}</b>`
@@ -210,6 +231,7 @@ async function convert(kind) {
       api.get('/api/v1/company/custom-properties?limit=200'),
       api.get(`/api/v1/cards/${card.id}`),
     ]);
+    await loadSelectValues(api, defs, [H.impact, H.cost]);
     render(defs, full);
   } catch (e) {
     root.innerHTML = `<div class="muted">Не удалось загрузить: ${esc(e && e.message)}</div>`;

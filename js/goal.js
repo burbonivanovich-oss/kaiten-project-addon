@@ -43,6 +43,27 @@ async function ensureAuth() {
   root.innerHTML = '<div class="muted">Загружаю…</div>';
 }
 
+/* Значения select-полей приходится догружать отдельно.
+ *
+ * GET /company/custom-properties отдаёт определения БЕЗ ключа values — ни один
+ * параметр (with_values, include, expand) этого не меняет, проверено. Поэтому
+ * любое чтение select через def.values молча возвращало null: статус проекта
+ * не читался, влияние и стоимость гипотезы считались незаполненными, а форма
+ * отчёта не находила id значения и не сохраняла статус вообще.
+ *
+ * Грузим только те поля, которые реально нужны экрану, и параллельно.
+ */
+async function loadSelectValues(api, defs, names) {
+  const need = (defs || []).filter((d) =>
+    names.indexOf(d.name) !== -1 &&
+    (d.type === 'select' || d.type === 'multi_select') && !d.values);
+  await Promise.all(need.map(async (d) => {
+    try { d.values = await api.get(`/api/v1/company/custom-properties/${d.id}/select-values`); }
+    catch (e) { d.values = []; }
+  }));
+  return defs;
+}
+
 function readProp(defs, card, name) {
   const def = defs.find((p) => p.name === name);
   if (!def) return null;
@@ -69,6 +90,7 @@ async function render() {
     api.get(`/api/v1/cards/${card.id}/children`),
     api.get(`/api/v1/cards/${card.id}`),
   ]);
+  await loadSelectValues(api, defs, Object.values(F));
 
   const live = (children || []).filter((c) => c.condition === 1);
   if (!live.length) {

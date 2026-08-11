@@ -22,6 +22,25 @@ const $ = (id) => document.getElementById(id);
 const msg = (t) => { $('msg').textContent = t || ''; };
 const def = (name) => defs.find((p) => p.name === name);
 
+/* Значения select-полей приходится догружать отдельно.
+ *
+ * GET /company/custom-properties отдаёт определения БЕЗ ключа values — ни один
+ * параметр (with_values, include, expand) этого не меняет, проверено. Здесь это
+ * было хуже всего: selectValueId не находил id значения статуса, props оставался
+ * без него, и «Опубликовать» молча сохраняло отчёт БЕЗ статуса. Пользователь
+ * видел «Готово», а светофор не двигался.
+ */
+async function loadSelectValues(api, defs, names) {
+  const need = (defs || []).filter((d) =>
+    names.indexOf(d.name) !== -1 &&
+    (d.type === 'select' || d.type === 'multi_select') && !d.values);
+  await Promise.all(need.map(async (d) => {
+    try { d.values = await api.get(`/api/v1/company/custom-properties/${d.id}/select-values`); }
+    catch (e) { d.values = []; }
+  }));
+  return defs;
+}
+
 function selectValueId(name, value) {
   const d = def(name);
   const v = d && (d.values || []).find((x) => x.value === value);
@@ -67,6 +86,7 @@ async function init() {
   await ensureAuth();
   card = await iframe.getCard();
   defs = await api.get('/api/v1/company/custom-properties?limit=200');
+  await loadSelectValues(api, defs, [F.status, F.metric]);
 
   // подсказать, какую метрику вообще просят
   const md = def(F.metric);
