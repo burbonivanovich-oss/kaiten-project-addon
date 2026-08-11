@@ -32,6 +32,40 @@ const PROP_EST = 620084; // id кастомного свойства «Оцен�
 
 const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+/* ── НАПРАВЛЕНИЯ ──────────────────────────────────────────────────────────
+ *
+ * Стратегический разрез. Портфель, отсортированный по статусу, отвечает
+ * «где горит»; разрез по направлениям отвечает «куда мы вообще вкладываемся»
+ * — а это разные вопросы, и второй раньше не задавался нигде.
+ *
+ * Поле ищем ПО ИМЕНИ и догружаем его значения отдельным запросом: список
+ * свойств отдаёт определения без ключа values, это уже ломало чтение статуса
+ * во всех остальных экранах.
+ */
+const DIRECTION_FIELD = 'Направление';
+const NO_DIRECTION = 'Без направления';
+
+let dirDefId = null;
+let dirValues = {};   // select-value id → подпись
+
+async function loadDirections() {
+  try {
+    const props = await api.get('/api/v1/company/custom-properties?limit=200');
+    const def = (props || []).find(p => p.name === DIRECTION_FIELD);
+    if (!def) return;
+    dirDefId = def.id;
+    const vals = await api.get(`/api/v1/company/custom-properties/${def.id}/select-values`);
+    for (const v of vals || []) dirValues[v.id] = v.value || v.display_value;
+  } catch (e) { /* без направлений дашборд остаётся прежним */ }
+}
+
+function readDirection(card) {
+  if (!dirDefId) return NO_DIRECTION;
+  const raw = (card.properties || {})[`id_${dirDefId}`];
+  const id = Array.isArray(raw) ? raw[0] : raw;
+  return (id != null && dirValues[id]) || NO_DIRECTION;
+}
+
 async function ensureAuth() {
   try { await api.getAccessToken(); return; } catch (e) {}
   document.getElementById('shell').innerHTML = `
@@ -68,6 +102,7 @@ async function fetchProjects() {
         done:    c.children_done  || 0,
         total:   c.children_count || 0,
         due:     c.due_date || null,
+        direction: readDirection(c),
       };
     })
     .sort((a, b) => {
@@ -168,6 +203,93 @@ function renderProjects(projects) {
           <div class="proj-bar"><div class="proj-bar-fill" style="width:${p.pct}%;background:${sc}"></div></div>
           <div class="proj-pct">${p.pct}%</div>
         </div>
+      </div>`;
+  }).join('');
+}
+
+/* Портфель в разрезе направлений.
+ *
+ * Отвечает на вопрос, которого не было ни на одном экране: во что мы
+ * вкладываемся и что из этого едет. Считаем по каждому направлению долю
+ * закрытых задач его проектов и худший статус — направление не может быть
+ * «в плане», если внутри горит проект.
+ *
+ * Строки без направления не прячем: пустое направление — это тоже сообщение,
+ * причём срочное, иначе проект не попадает в стратегическую картину вообще.
+ */
+function renderDirections(projects) {
+  if (!projects.length) return '<div class="empty">Нет проектов</div>';
+
+  const byDir = new Map();
+  for (const p of projects) {
+    if (!byDir.has(p.direction)) {
+      byDir.set(p.direction, { name: p.direction, projects: [], done: 0, total: 0 });
+    }
+    const g = byDir.get(p.direction);
+    g.projects.push(p);
+    g.done += p.done;
+    g.total += p.total;
+  }
+
+  const RANK = { 'Критичные проблемы': 0, 'Отстаёт': 1, 'В плане': 2 };
+  const groups = [...byDir.values()].map(g => {
+    const worst = g.projects
+      .map(p => p.status)
+      .filter(Boolean)
+      .sort((a, b) => (RANK[a.label] ?? 3) - (RANK[b.label] ?? 3))[0] || null;
+    return {
+      ...g,
+      worst,
+      pct: g.total ? Math.round((g.done / g.total) * 100) : 0,
+      counts: {
+        bad:  g.projects.filter(p => p.status?.label === 'Критичные проблемы').length,
+        warn: g.projects.filter(p => p.status?.label === 'Отстаёт').length,
+        ok:   g.projects.filter(p => p.status?.label === 'В плане').length,
+        none: g.projects.filter(p => !p.status).length,
+      },
+    };
+  });
+
+  // «Без направления» всегда последним — это хвост, а не направление.
+  groups.sort((a, b) => {
+    if (a.name === NO_DIRECTION) return 1;
+    if (b.name === NO_DIRECTION) return -1;
+    return (RANK[a.worst?.label] ?? 3) - (RANK[b.worst?.label] ?? 3)
+        || b.projects.length - a.projects.length;
+  });
+
+  return groups.map(g => {
+    const color = g.name === NO_DIRECTION ? '#8b92a5' : (g.worst?.color || '#8b92a5');
+    const chips = [
+      g.counts.bad  ? `<span style="color:#E24B4A">🔴 ${g.counts.bad}</span>`  : '',
+      g.counts.warn ? `<span style="color:#EF9F27">🟡 ${g.counts.warn}</span>` : '',
+      g.counts.ok   ? `<span style="color:#1D9E75">🟢 ${g.counts.ok}</span>`   : '',
+      g.counts.none ? `<span class="muted">⚪ ${g.counts.none}</span>`          : '',
+    ].filter(Boolean).join(' · ');
+
+    const rows = g.projects.map(p => `
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+        <div class="dl-badge ${p.status?.label === 'Критичные проблемы' ? 'bad'
+                              : p.status?.label === 'Отстаёт' ? 'warn' : 'ok'}">${p.pct}%</div>
+        <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
+        <div class="dl-date">${p.done}/${p.total}</div>
+      </div>`).join('');
+
+    const hint = g.name === NO_DIRECTION
+      ? '<div class="wl-sub muted" style="margin:2px 0 6px">Эти проекты не попадают в стратегическую картину — проставьте им направление.</div>'
+      : '';
+
+    return `
+      <div class="wl-row" style="border-left:3px solid ${color};padding-left:10px;margin-bottom:14px">
+        <div class="wl-top">
+          <div class="wl-name">${esc(g.name)}</div>
+          <div class="wl-pct">${chips}</div>
+        </div>
+        <div class="wl-bar-wrap"><div class="wl-bar" style="width:${g.pct}%;background:${color}"></div></div>
+        <div class="wl-sub muted">${g.projects.length} ${
+          g.projects.length === 1 ? 'проект' : 'проектов'} · ${g.done} из ${g.total} задач закрыто</div>
+        ${hint}
+        ${rows}
       </div>`;
   }).join('');
 }
@@ -280,7 +402,12 @@ function setPanel(id, title, html) {
 async function init() {
   await ensureAuth();
 
+  // Направления нужны до проектов: readDirection вызывается при их разборе.
+  await loadDirections();
+
   const projects = await fetchProjects();
+  setPanel('p-directions', 'Портфель по направлениям', renderDirections(projects));
+
   const [workload, orphans] = await Promise.all([fetchWorkload(projects), fetchOrphans()]);
 
   setPanel('p-projects',  'Проекты',                  renderProjects(projects));

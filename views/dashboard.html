@@ -100,6 +100,9 @@
       <h1>📊 Дашборд команды</h1>
       <span class="updated" id="updated"></span>
     </header>
+    <!-- Направления идут первыми и во всю ширину: это стратегический разрез,
+         остальные панели отвечают на операционные вопросы. -->
+    <div class="panel" id="p-directions" style="margin-bottom:12px"><div class="panel-title">Портфель по направлениям</div><div class="spinner">Загружаю…</div></div>
     <div class="grid" id="grid">
       <div class="panel" id="p-projects"><div class="panel-title">Проекты</div><div class="spinner">Загружаю…</div></div>
       <div class="panel" id="p-deadlines"><div class="panel-title">Дедлайны</div><div class="spinner"></div></div>
@@ -107,6 +110,6 @@
     </div>
     <div class="panel" id="p-orphans" style="margin-top:12px"><div class="panel-title">Влётные задачи (без проекта)</div><div class="spinner"></div></div>
   </div>
-  <script src="../js/dashboard.js?v=6"></script>
+  <script src="../js/dashboard.js?v=7"></script>
 </body>
 </html>

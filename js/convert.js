@@ -16,6 +16,9 @@ const TASK_TYPE = 'Задача';
 // Доска портфеля этой инсталляции; перебивается настройкой new_project_board_id.
 const DEFAULT_PORTFOLIO_BOARD = 1853650; // «Обзор проектов» в «2 · Портфель проектов»
 
+const bar = (pct, cls) =>
+  `<div class="bar"><div class="bar-fill ${cls || ''}" style="width:${Math.min(pct, 100)}%"></div></div>`;
+
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g,
   (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
@@ -88,7 +91,43 @@ async function cardLink(boardId, text) {
  */
 const H = { effect: 'Ожидаемый эффект', check: 'Как проверим',
             impact: 'Влияние', impactVote: 'Влияние — голос команды',
-            cost: 'Стоимость проверки' };
+            cost: 'Стоимость проверки', direction: 'Направление',
+            score: 'Приоритет' };
+
+/* ПРИОРИТЕТ ЧИСЛОМ — 1…9.
+ *
+ * Пара «влияние × стоимость проверки» читается человеком, но не сортируется
+ * машиной: доску нельзя выстроить по важности, а значит при двух десятках
+ * идей порядок приходится держать в голове. Число это чинит — Kaiten умеет
+ * сортировать колонку по числовому полю.
+ *
+ * Формула намеренно примитивная: влияние × дешевизна проверки. Это ICE,
+ * ужатый до двух осей, и никакой точности тут не изображается — важен
+ * порядок, а не абсолютное значение. 9 = высокое влияние, дешёвая проверка.
+ */
+const IMPACT_WEIGHT = { hi: 3, mid: 2, lo: 1 };
+
+function costWeight(cost) {
+  if (!cost) return null;
+  if (/Дёшево/.test(cost)) return 3;
+  if (/Средне/.test(cost)) return 2;
+  if (/Дорого/.test(cost)) return 1;
+  return null;
+}
+
+function priorityScore(impact, cost) {
+  const i = impact && IMPACT_WEIGHT[impact.level];
+  const c = costWeight(cost);
+  return i && c ? i * c : null;
+}
+
+// Словами — чтобы число не пришлось расшифровывать каждый раз.
+function scoreVerdict(score) {
+  if (score >= 9) return { cls: 'ok',   text: 'верхняя полка банка — берут первыми' };
+  if (score >= 6) return { cls: 'ok',   text: 'хорошая ставка' };
+  if (score >= 3) return { cls: 'warn', text: 'средняя полка — подождёт' };
+  return { cls: 'bad', text: 'нижняя полка — дорого проверять при слабом эффекте' };
+}
 
 /* Значения select-полей приходится догружать отдельно.
  *
@@ -224,15 +263,23 @@ function render(defs, full, impact) {
     check:  readProp(defs, full, H.check),
     impact: impact ? impact.text : null,
     cost:   readProp(defs, full, H.cost),
+    direction: readProp(defs, full, H.direction),
   };
   const voting = !!(defs || []).find((p) => p.name === H.impactVote);
+  /* Направление — пятый пункт, и это не формальность.
+   *
+   * Без него идея живёт в вакууме: её нельзя ни сопоставить со стратегией, ни
+   * увидеть в разрезе направлений на дашборде. Идея, не двигающая ни одного
+   * направления, — сама по себе повод для разговора, а не строка в списке. */
   const rows = [
-    ['effect', 'Ожидаемый эффект',   'что изменится и на сколько'],
-    ['check',  'Как проверим',       'эксперимент или метрика'],
-    ['impact', 'Влияние',            voting ? 'команда ещё не голосовала' : 'насколько это важно'],
-    ['cost',   'Стоимость проверки', 'во что обойдётся проверить'],
+    ['effect',    'Ожидаемый эффект',   'что изменится и на сколько'],
+    ['check',     'Как проверим',       'эксперимент или метрика'],
+    ['impact',    'Влияние',            voting ? 'команда ещё не голосовала' : 'насколько это важно'],
+    ['cost',      'Стоимость проверки', 'во что обойдётся проверить'],
+    ['direction', 'Направление',        'какое направление это двигает'],
   ];
   const filled = rows.filter(([k]) => vals[k]).length;
+  const total = rows.length;
 
   const checklist = rows.map(([k, label, hintText]) => `
     <div class="task ${vals[k] ? 'done' : ''}">
@@ -256,11 +303,30 @@ function render(defs, full, impact) {
       Без этого проект уедет в портфель без критерия успеха — и там останется.</div>
     </div>` : '';
 
+  // Приоритет числом — над чек-листом: это то, ради чего его заполняют.
+  const score = priorityScore(impact, vals.cost);
+  const sv = score != null ? scoreVerdict(score) : null;
+  const scoreHtml = score != null ? `
+    <div class="card">
+      <div class="card-title">⚖️ Приоритет <span class="cnt">${score} из 9</span></div>
+      <div class="metric">
+        <div class="grow">${bar(Math.round(score / 9 * 100), sv.cls === 'ok' ? 'ok' : sv.cls)}</div>
+      </div>
+      <div class="load-foot">${esc(sv.text)} · влияние × дешевизна проверки, по этому полю
+      сортируется доска</div>
+    </div>` : `
+    <div class="card">
+      <div class="card-title">⚖️ Приоритет <span class="cnt">не посчитан</span></div>
+      <div class="load-foot">Нужны влияние и стоимость проверки — без них идею не с чем
+      сравнить, и она не встанет в очередь.</div>
+    </div>`;
+
   root.innerHTML = `
     <div class="card">
-      <div class="card-title">💡 Идея <span class="cnt">${filled} из 4 заполнено</span></div>
+      <div class="card-title">💡 Идея <span class="cnt">${filled} из ${total} заполнено</span></div>
       ${checklist}
     </div>
+    ${scoreHtml}
     ${hintHtml}
     ${spreadHint(impact)}
     ${warn}
@@ -275,6 +341,27 @@ function render(defs, full, impact) {
   document.getElementById('to-project').addEventListener('click', () => convert('project'));
   document.getElementById('to-task').addEventListener('click', () => convert('task'));
   iframe.fitSize('#root');
+}
+
+/* Приоритет записывается в поле карточки, а не только рисуется.
+ *
+ * Нарисованное число живёт внутри секции и доске недоступно: сортировать по
+ * нему нельзя, в фильтр не положить, в отчёт не вытащить. Поэтому считаем при
+ * открытии идеи и кладём в числовое поле — дальше это обычные данные Kaiten.
+ *
+ * Пишем только при расхождении: лишний PATCH на каждое открытие карточки
+ * засоряет историю изменений и делает «обновлено» бессмысленным.
+ */
+async function syncScore(api, defs, full, impact) {
+  const def = (defs || []).find((p) => p.name === H.score);
+  if (!def) return;                       // поле не заведено — молча выходим
+  const score = priorityScore(impact, readProp(defs, full, H.cost));
+  if (score == null) return;              // нечего считать
+  const current = Number((full.properties || {})[`id_${def.id}`]);
+  if (current === score) return;          // уже актуально
+  try {
+    await api.patch(`/api/v1/cards/${full.id}`, { properties: { [`id_${def.id}`]: score } });
+  } catch (e) { /* не записалось — экран уже показал число, это не критично */ }
 }
 
 async function convert(kind) {
@@ -327,6 +414,7 @@ async function convert(kind) {
     // на старой схеме readImpact лишних обращений не делает.
     const impact = await readImpact(api, defs, full);
     render(defs, full, impact);
+    await syncScore(api, defs, full, impact);
   } catch (e) {
     root.innerHTML = `<div class="muted">Не удалось загрузить: ${esc(e && e.message)}</div>`;
     iframe.fitSize('#root');
