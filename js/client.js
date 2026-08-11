@@ -36,7 +36,7 @@ const DEFAULTS = {
 const BASE = 'https://burbonivanovich-oss.github.io/kaiten-project-addon/views/';
 // Контекст Kaiten передаёт во фрагменте (#…), а не в query — HTML страниц кэшируется
 // браузером на 10 минут. Версия в query ломает кэш; поднимать при каждой правке страниц.
-const PAGE_V = 'v=38';
+const PAGE_V = 'v=39';
 
 // Поля ищем ПО ИМЕНИ, а не по id: id в каждой компании свои.
 const F = { status: 'Статус' };
@@ -150,6 +150,12 @@ var initResult = Addon.initialize({
      Никаких API-вызовов: только то, что уже есть в объекте карточки. */
   card_facade_badges: async (ctx) => {
     dbg('card_facade_badges called');
+    // ВРЕМЕННЫЙ ЗОНД. Убрать сразу после проверки.
+    // Отвечает на единственный вопрос: зовёт ли Kaiten этот обработчик вообще.
+    // Появился бейдж — зовёт, и проблема в нашей логике или в данных.
+    // Не появился — не зовёт, и искать надо в регистрации аддона.
+    return [{ text: 'ЗОНД' }];
+    // eslint-disable-next-line no-unreachable
     try {
     const card = await ctx.getCard();
     const cfg = await getCfg(ctx);
