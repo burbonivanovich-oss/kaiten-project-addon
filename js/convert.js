@@ -211,7 +211,12 @@ async function readImpact(api, defs, c) {
           max,
         };
       }
-      return null;   // поле заведено, но никто не голосовал — считаем незаполненным
+      /* Голосов нет — НЕ считаем влияние пустым, а падаем на старый select.
+       *
+       * Иначе переход ломает данные: поле-голосование заведено сегодня, голосов
+       * ещё ни одного, и все идеи разом теряют влияние — вместе с приоритетом,
+       * который из него считается. Пустым влияние становится, только когда нет
+       * ни голосов, ни старого значения. */
     } catch (e) { /* не прочиталось — читаем старый select */ }
   }
   const sel = readProp(defs, c, H.impact);
@@ -409,7 +414,9 @@ async function convert(kind) {
       api.get('/api/v1/company/custom-properties?limit=200'),
       api.get(`/api/v1/cards/${card.id}`),
     ]);
-    await loadSelectValues(api, defs, [H.impact, H.cost]);
+    // Направление — тоже select, и без догрузки значений оно читалось как
+    // пустое, хотя на карточке стоит. Ровно тот же баг, что уже был со статусом.
+    await loadSelectValues(api, defs, [H.impact, H.cost, H.direction]);
     // Голоса — отдельный запрос, но только если поле-голосование заведено:
     // на старой схеме readImpact лишних обращений не делает.
     const impact = await readImpact(api, defs, full);
