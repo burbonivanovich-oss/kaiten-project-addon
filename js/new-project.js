@@ -111,14 +111,24 @@ async function ensureAuth() {
  */
 const COLUMN_WIDTH = 304;
 
-async function placeBoardsInRow(first, second, firstColumns) {
+/* Путь для PATCH доски — ЧЕРЕЗ ПРОСТРАНСТВО.
+ * /api/v1/boards/{id} отвечает 405 Method Not Allowed: этот адрес только для
+ * чтения. Первый заход именно на нём и провалился — молча, потому что вызов
+ * стоял в try/catch, и проект создавался с досками друг под другом. */
+async function placeBoardsInRow(spaceId, first, second, firstColumns) {
+  const move = (board, left) =>
+    api.patch(`/api/v1/spaces/${spaceId}/boards/${board.id}`, { top: 0, left });
   try {
     await Promise.all([
-      api.patch(`/api/v1/boards/${first.id}`, { top: 0, left: 0 }),
-      api.patch(`/api/v1/boards/${second.id}`,
-        { top: 0, left: COLUMN_WIDTH * firstColumns }),
+      move(first, 0),
+      move(second, COLUMN_WIDTH * firstColumns),
     ]);
-  } catch (e) { /* доски созданы; кривая раскладка не повод рушить создание проекта */ }
+    return true;
+  } catch (e) {
+    // Раскладка — не повод рушить создание проекта, но и молчать нельзя:
+    // криво разложенные доски и есть та ловушка, ради которой всё это писалось.
+    return false;
+  }
 }
 
 /* Справочная доска — только чтение.
@@ -138,6 +148,11 @@ async function placeBoardsInRow(first, second, firstColumns) {
  * добавить позже руками.
  */
 async function lockInfoBoard(spaceId, boardId) {
+  // created обязателен И на самом правиле, И внутри data — без него API отвечает
+  // 400 «should have required property 'created'». В интерфейсе поле проставляется
+  // само, поэтому в скопированном из UI теле его не было видно, и первый заход
+  // молча падал: проект создавался без защиты справочной доски.
+  const created = new Date().toISOString();
   try {
     await api.post(`/api/v1/spaces/${spaceId}/restrictions`, {
       name: 'Справочная доска — только чтение',
@@ -148,10 +163,14 @@ async function lockInfoBoard(spaceId, boardId) {
       restrictions: [{
         type: 'creation',
         operator: 'eq',
-        data: { path: { spaceId, boardId } },
+        created,
+        data: { path: { spaceId, boardId }, created },
       }],
     });
-  } catch (e) { /* см. коммент выше */ }
+    return true;
+  } catch (e) {
+    return false;
+  }
 }
 
 // Состав рабочей доски. Вынесен наверх: по числу колонок считается сдвиг
@@ -242,8 +261,8 @@ async function init() {
       const tasksBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Задачи проекта' });
       await setupTasksBoard(tasksBoard.id);
       const infoBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
-      await placeBoardsInRow(tasksBoard, infoBoard, TASK_COLUMNS.length);
-      await lockInfoBoard(space.id, infoBoard.id);
+      const placed = await placeBoardsInRow(space.id, tasksBoard, infoBoard, TASK_COLUMNS.length);
+      const locked = await lockInfoBoard(space.id, infoBoard.id);
 
       msg('Добавляю в портфель…');
       const cardBody = {
@@ -271,6 +290,20 @@ async function init() {
       }
 
       const suffix = GOAL_ID ? ' и привязан к цели' : '';
+
+      // Раскладка и защита справочной доски не критичны для создания проекта,
+      // но если они не встали — человек должен об этом знать, иначе задачи
+      // начнут уезжать в справку, а он будет думать, что всё настроено.
+      const broken = [];
+      if (!placed) broken.push('доски встали друг под другом — поправьте перетаскиванием');
+      if (!locked) broken.push('на «Ключевое о проекте» не встал запрет создавать карточки');
+
+      if (broken.length) {
+        msg(`✅ Проект «${card.title}» создан${suffix}, но: ${broken.join('; ')}.`);
+        iframe.showSnackbar(`Проект создан, но настроен не полностью`, 'warning');
+        return;   // не закрываем окно: предупреждение надо прочитать
+      }
+
       msg(`✅ Проект «${card.title}» создан${suffix}.`);
       iframe.showSnackbar(`Проект «${card.title}» создан${suffix}`, 'success');
       setTimeout(closeSelf, 1400);
