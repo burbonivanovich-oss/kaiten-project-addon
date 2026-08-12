@@ -193,9 +193,15 @@ const CONNECTOR_URL = location.origin + location.pathname.replace(/[^/]*$/, 'ind
 
 /* Доступ команды к новому пространству.
  *
- * Без явной роли Kaiten даёт всем reader: люди видят проект, но не могут
- * создать в нём ни карточку, ни доску. Для рабочего пространства это мёртвый
- * доступ — задачу поставить нельзя.
+ * Настроек ДВЕ, и работают они только вместе:
+ *
+ *   access = 'for_everyone'            — кто вообще попадает в пространство
+ *   for_everyone_access_role_id        — что он там может
+ *
+ * По умолчанию Kaiten ставит access = 'by_invite', и тогда роль «для всех»
+ * записана, но не применяется: человек упирается в закрытое пространство и
+ * жмёт «запросить доступ». Ровно так и вышло — роль стояла writer во всех
+ * пространствах, а новый сотрудник не видел ничего.
  *
  * Роль ищем по имени, а не по uid: uid системных ролей совпадает между
  * аккаунтами Kaiten, но полагаться на это при переносе в другую компанию
@@ -209,6 +215,28 @@ async function writerRoleId() {
     return w ? (w.id || w.uid) : null;
   } catch (e) {
     return null;
+  }
+}
+
+/* Открыть пространство всей компании.
+ *
+ * Отдельным шагом, потому что POST /spaces поле access молча игнорирует:
+ * тело принимает, а в ответе всё равно by_invite. Нужен PATCH после создания,
+ * причём с title в теле — без него PATCH пространства отвечает 400
+ * «should have required property '.title'».
+ */
+async function openSpaceToEveryone(space, roleId) {
+  if (!roleId) return false;
+  try {
+    const res = await api.patch(`/api/v1/spaces/${space.id}`, {
+      title: space.title,
+      access: 'for_everyone',
+      for_everyone_access_role_id: roleId,
+    });
+    return res && res.access === 'for_everyone'
+      && res.for_everyone_access_role_id === roleId;
+  } catch (e) {
+    return false;
   }
 }
 
@@ -296,10 +324,11 @@ async function init() {
 
     try {
       msg('Создаю пространство…');
-      const spaceBody = { title, parent_entity_uid: PORTFOLIO_UID };
       const writer = await writerRoleId();
+      const spaceBody = { title, parent_entity_uid: PORTFOLIO_UID };
       if (writer) spaceBody.for_everyone_access_role_id = writer;
       const space = await api.post('/api/v1/spaces', spaceBody);
+      const openToAll = await openSpaceToEveryone(space, writer);
 
       /* Порядок создания важен: РАБОЧАЯ доска первая.
        *
@@ -353,7 +382,7 @@ async function init() {
       if (!placed) broken.push('доски встали друг под другом — поправьте перетаскиванием');
       if (!locked) broken.push('на «Ключевое о проекте» не встал запрет создавать карточки');
       if (!addonOn) broken.push('дополнение не включилось — включите вручную: 🌐 → Дополнения');
-      if (!writer) broken.push('команде выдан доступ «только чтение» — поменяйте на «Редактор» в доступах пространства');
+      if (!openToAll) broken.push('пространство закрыто от команды — откройте доступ всем с ролью «Редактор»');
 
       if (broken.length) {
         msg(`✅ Проект «${card.title}» создан${suffix}, но: ${broken.join('; ')}.`);
