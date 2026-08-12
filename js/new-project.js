@@ -173,6 +173,39 @@ async function lockInfoBoard(spaceId, boardId) {
   }
 }
 
+/* Включение аддона в новом пространстве.
+ *
+ * Kaiten не наследует дополнения в дочерние пространства: новый проект
+ * создавался вообще без аддона, то есть без страницы проекта, без кнопки
+ * «Задача команде» и без бейджей. Раньше это чинили руками через
+ * 🌐 → Дополнения → ВКЛЮЧИТЬ, но на каждый новый проект так ходить нельзя.
+ *
+ * В документации значилось, что API этого не умеет (POST на /spaces/{id}/addons
+ * отвечает 405). Это верно только для POST: включает PATCH на конкретный аддон —
+ * /api/v1/spaces/{spaceId}/addons/{addonId}. Проверено на живом аккаунте
+ * 12.08.2026, подтверждено в интерфейсе («Включенные дополнения (1)»).
+ *
+ * Свой addonId не хардкодим: берём список аддонов компании и находим тот, чей
+ * URL коннектора совпадает с index.html рядом с этой страницей. При переезде на
+ * другой хостинг совпадение поедет вместе с адресом само.
+ */
+const CONNECTOR_URL = location.origin + location.pathname.replace(/[^/]*$/, 'index.html');
+
+async function enableAddonInSpace(spaceId) {
+  try {
+    const addons = await api.get('/api/v1/company/addons');
+    const mine = (addons || []).find(
+      (a) => a && !a.archived && a.iframe_initial_url === CONNECTOR_URL);
+    if (!mine) return false;
+    await api.patch(`/api/v1/spaces/${spaceId}/addons/${mine.id}`, { archived: false });
+    // Успешный PATCH без проверки уже однажды дал ложное «готово» — сверяем.
+    const check = await api.get(`/api/v1/spaces/${spaceId}/addons`);
+    return (check || []).some((a) => a && a.id === mine.id);
+  } catch (e) {
+    return false;
+  }
+}
+
 // Состав рабочей доски. Вынесен наверх: по числу колонок считается сдвиг
 // справочной доски, чтобы она встала вплотную справа.
 const TASK_COLUMNS = [
@@ -263,6 +296,7 @@ async function init() {
       const infoBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
       const placed = await placeBoardsInRow(space.id, tasksBoard, infoBoard, TASK_COLUMNS.length);
       const locked = await lockInfoBoard(space.id, infoBoard.id);
+      const addonOn = await enableAddonInSpace(space.id);
 
       msg('Добавляю в портфель…');
       const cardBody = {
@@ -297,6 +331,7 @@ async function init() {
       const broken = [];
       if (!placed) broken.push('доски встали друг под другом — поправьте перетаскиванием');
       if (!locked) broken.push('на «Ключевое о проекте» не встал запрет создавать карточки');
+      if (!addonOn) broken.push('дополнение не включилось — включите вручную: 🌐 → Дополнения');
 
       if (broken.length) {
         msg(`✅ Проект «${card.title}» создан${suffix}, но: ${broken.join('; ')}.`);
