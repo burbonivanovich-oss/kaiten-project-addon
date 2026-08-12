@@ -121,6 +121,39 @@ async function placeBoardsInRow(first, second, firstColumns) {
   } catch (e) { /* доски созданы; кривая раскладка не повод рушить создание проекта */ }
 }
 
+/* Справочная доска — только чтение.
+ *
+ * Ставим ОГРАНИЧЕНИЕ Kaiten: на инфо-доске нельзя создавать карточки. Это
+ * страховка от главной ловушки пространства проекта — нативный диалог
+ * «Создать карточку» подставляет расположение сам, и задача уезжала в справку
+ * молча. Теперь вместо тихой ошибки человек видит текст, который объясняет,
+ * куда класть задачу.
+ *
+ * Ограничение живёт НА ПРОСТРАНСТВЕ, то есть новому проекту нужно своё. Руками
+ * это делать нельзя — забудут на второй раз; поэтому его ставит форма, здесь.
+ * Форма запроса снята с ограничения, собранного в интерфейсе: type on_action,
+ * внутри restrictions[0] с type creation и путём до доски.
+ *
+ * Падение не критично: доски уже созданы, проект рабочий, ограничение можно
+ * добавить позже руками.
+ */
+async function lockInfoBoard(spaceId, boardId) {
+  try {
+    await api.post(`/api/v1/spaces/${spaceId}/restrictions`, {
+      name: 'Справочная доска — только чтение',
+      error_text: 'Это справка о проекте. Задачи создавайте на доске «Задачи проекта».',
+      type: 'on_action',
+      status: 'active',
+      conditions: [],
+      restrictions: [{
+        type: 'creation',
+        operator: 'eq',
+        data: { path: { spaceId, boardId } },
+      }],
+    });
+  } catch (e) { /* см. коммент выше */ }
+}
+
 // Состав рабочей доски. Вынесен наверх: по числу колонок считается сдвиг
 // справочной доски, чтобы она встала вплотную справа.
 const TASK_COLUMNS = [
@@ -210,6 +243,7 @@ async function init() {
       await setupTasksBoard(tasksBoard.id);
       const infoBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
       await placeBoardsInRow(tasksBoard, infoBoard, TASK_COLUMNS.length);
+      await lockInfoBoard(space.id, infoBoard.id);
 
       msg('Добавляю в портфель…');
       const cardBody = {
