@@ -191,6 +191,27 @@ async function lockInfoBoard(spaceId, boardId) {
  */
 const CONNECTOR_URL = location.origin + location.pathname.replace(/[^/]*$/, 'index.html');
 
+/* Доступ команды к новому пространству.
+ *
+ * Без явной роли Kaiten даёт всем reader: люди видят проект, но не могут
+ * создать в нём ни карточку, ни доску. Для рабочего пространства это мёртвый
+ * доступ — задачу поставить нельзя.
+ *
+ * Роль ищем по имени, а не по uid: uid системных ролей совпадает между
+ * аккаунтами Kaiten, но полагаться на это при переносе в другую компанию
+ * не стоит. writer = читать, создавать, менять, двигать, удалять карточки
+ * и доски; удалить само пространство и трогать вебхуки он не может.
+ */
+async function writerRoleId() {
+  try {
+    const roles = await api.get('/api/v1/tree-entity-roles');
+    const w = (roles || []).find((r) => r && r.name === 'writer');
+    return w ? (w.id || w.uid) : null;
+  } catch (e) {
+    return null;
+  }
+}
+
 async function enableAddonInSpace(spaceId) {
   try {
     const addons = await api.get('/api/v1/company/addons');
@@ -275,10 +296,10 @@ async function init() {
 
     try {
       msg('Создаю пространство…');
-      const space = await api.post('/api/v1/spaces', {
-        title,
-        parent_entity_uid: PORTFOLIO_UID,
-      });
+      const spaceBody = { title, parent_entity_uid: PORTFOLIO_UID };
+      const writer = await writerRoleId();
+      if (writer) spaceBody.for_everyone_access_role_id = writer;
+      const space = await api.post('/api/v1/spaces', spaceBody);
 
       /* Порядок создания важен: РАБОЧАЯ доска первая.
        *
@@ -332,6 +353,7 @@ async function init() {
       if (!placed) broken.push('доски встали друг под другом — поправьте перетаскиванием');
       if (!locked) broken.push('на «Ключевое о проекте» не встал запрет создавать карточки');
       if (!addonOn) broken.push('дополнение не включилось — включите вручную: 🌐 → Дополнения');
+      if (!writer) broken.push('команде выдан доступ «только чтение» — поменяйте на «Редактор» в доступах пространства');
 
       if (broken.length) {
         msg(`✅ Проект «${card.title}» создан${suffix}, но: ${broken.join('; ')}.`);
