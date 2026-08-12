@@ -205,7 +205,7 @@ window.toggle = function(head) {
 
 window.goToProject = function(cardId) {
   if (!cardId) return;
-  window.open(`${KAITEN}/space/${OVERVIEW_SPACE}/${OVERVIEW_BOARD}/card/${cardId}`, '_blank');
+  window.open(`${KAITEN}/space/${OVERVIEW_SPACE}/boards/card/${cardId}`, '_blank');
 };
 
 async function init() {

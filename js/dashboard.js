@@ -7,8 +7,12 @@ const KAITEN         = 'https://artempdirect3.kaiten.ru';
 const OVERVIEW_BOARD = 1853650;
 const OVERVIEW_SPACE = 825694;   // пространство «2 · Портфель проектов»
 
-const cardUrl = (cardId, boardId, spaceId) =>
-  `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
+// Рабочий формат ссылки на карточку — /space/{spaceId}/boards/card/{cardId}.
+// Со вставленным id доски (/space/{spaceId}/{boardId}/card/{cardId}) Kaiten
+// отдаёт «Something went wrong»: боковое меню схлопывается, доски остаются
+// пустыми скелетами. Проверено на живом аккаунте 12.08.2026.
+const cardUrl = (cardId, spaceId) =>
+  `${KAITEN}/space/${spaceId}/boards/card/${cardId}`;
 
 // Статус: id значения → метка + цвет
 const STATUS = {
@@ -193,7 +197,7 @@ function renderProjects(projects) {
     const slbl = p.status?.label || '—';
     const bg   = sc + '1a'; // 10% opacity
     return `
-      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_SPACE)}','_blank')">
         <div class="proj-top">
           <div class="proj-dot" style="background:${sc}"></div>
           <div class="proj-name" title="${esc(p.title)}">${esc(p.title)}</div>
@@ -268,7 +272,7 @@ function renderDirections(projects) {
     ].filter(Boolean).join(' · ');
 
     const rows = g.projects.map(p => `
-      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_SPACE)}','_blank')">
         <div class="dl-badge ${p.status?.label === 'Критичные проблемы' ? 'bad'
                               : p.status?.label === 'Отстаёт' ? 'warn' : 'ok'}">${p.pct}%</div>
         <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
@@ -321,7 +325,7 @@ function renderDeadlines(projects) {
     }
     const dateStr = new Date(p.due).toLocaleDateString('ru', { day:'numeric', month:'short' });
     return `
-      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_SPACE)}','_blank')">
         <div class="dl-badge ${cls}">${badge}</div>
         <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
         <div class="dl-date">${dateStr}</div>
@@ -363,7 +367,7 @@ function renderOrphans(orphans, projects) {
     return share + '<div class="empty">Все задачи привязаны к проектам ✅</div>';
   }
   return share + orphans.map(o => {
-    const url = cardUrl(o.id, o.boardId, o.spaceId);
+    const url = cardUrl(o.id, o.spaceId);
     return `
       <div class="dl-row" onclick="window.open('${url}','_blank')">
         <div class="dl-badge warn">${esc(o.team)}</div>

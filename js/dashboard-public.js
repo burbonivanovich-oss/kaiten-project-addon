@@ -7,8 +7,12 @@ const TOKEN_KEY      = 'kaiten_api_token';
 const OVERVIEW_BOARD = 1853650;
 const OVERVIEW_SPACE = 825694;
 
-const cardUrl = (cardId, boardId, spaceId) =>
-  `${KAITEN}/space/${spaceId}/${boardId}/card/${cardId}`;
+// Рабочий формат ссылки на карточку — /space/{spaceId}/boards/card/{cardId}.
+// Со вставленным id доски (/space/{spaceId}/{boardId}/card/{cardId}) Kaiten
+// отдаёт «Something went wrong»: боковое меню схлопывается, доски остаются
+// пустыми скелетами. Проверено на живом аккаунте 12.08.2026.
+const cardUrl = (cardId, spaceId) =>
+  `${KAITEN}/space/${spaceId}/boards/card/${cardId}`;
 
 const STATUS = {
   18963880: { label: 'В плане',            color: '#1D9E75' },
@@ -128,7 +132,7 @@ function renderProjects(projects) {
     const sc  = p.status?.color || '#8b92a5';
     const sl  = p.status?.label || '—';
     return `
-      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+      <div class="proj" onclick="window.open('${cardUrl(p.id, OVERVIEW_SPACE)}','_blank')">
         <div class="proj-top">
           <div class="proj-dot" style="background:${sc}"></div>
           <div class="proj-name" title="${esc(p.title)}">${esc(p.title)}</div>
@@ -161,7 +165,7 @@ function renderDeadlines(projects) {
     else                  { cls = 'ok';   badge = `${p.days} дн`; }
     const dateStr = new Date(p.due).toLocaleDateString('ru', { day:'numeric', month:'short' });
     return `
-      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_BOARD, OVERVIEW_SPACE)}','_blank')">
+      <div class="dl-row" onclick="window.open('${cardUrl(p.id, OVERVIEW_SPACE)}','_blank')">
         <div class="dl-badge ${cls}">${badge}</div>
         <div class="dl-name" title="${esc(p.title)}">${esc(p.title)}</div>
         <div class="dl-date">${dateStr}</div>
@@ -172,7 +176,7 @@ function renderDeadlines(projects) {
 function renderOrphans(orphans) {
   if (!orphans.length) return '<div class="empty">Все задачи привязаны к проектам ✅</div>';
   return orphans.map(o => {
-    const url = cardUrl(o.id, o.boardId, o.spaceId);
+    const url = cardUrl(o.id, o.spaceId);
     return `
       <div class="dl-row" onclick="window.open('${url}','_blank')">
         <div class="dl-badge warn">${esc(o.team)}</div>
