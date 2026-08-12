@@ -162,6 +162,23 @@ async function init() {
     const spId    = boardToSpace[sel.value];
     const boardId = sel.value;
     const loadEl  = document.getElementById('team-load');
+
+    /* Называем доску назначения прямо в форме.
+     *
+     * «Появится на доске команды» — правда, но неточная: у проекта есть свои
+     * доски «Ключевое о проекте» и «Задачи проекта», и человек справедливо
+     * спрашивает, куда именно упадёт карточка. Ответ — ни туда, ни туда:
+     * задача живёт у команды, а к проекту привязывается связью. Пусть это
+     * будет написано, а не подразумевалось. */
+    const lead = document.getElementById('lead');
+    if (lead) {
+      const opt = sel.options[sel.selectedIndex];
+      const board = opt && sel.value ? opt.textContent : null;
+      lead.textContent = board
+        ? `Задача появится на доске «${board}» и привяжется к этому проекту связью. ` +
+          'На доски самого проекта она не попадает.'
+        : 'Задача появится на доске команды и сразу привяжется к этому проекту.';
+    }
     respSel.innerHTML   = '<option value="">— загружаю… —</option>';
     loadEl.textContent  = '';
     if (!spId) { respSel.innerHTML = '<option value="">— не назначен —</option>'; return; }

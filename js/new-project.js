@@ -98,6 +98,29 @@ async function ensureAuth() {
   form.style.display = '';
 }
 
+/* Раскладка досок в пространстве.
+ *
+ * У доски есть координаты top/left, и по умолчанию новая доска получает
+ * left = 0 — то есть встаёт ПОД предыдущей. Пространство проекта из-за этого
+ * открывалось «лесенкой»: сверху одноколоночное «Ключевое о проекте», а доска
+ * задач уезжала вниз, за пределы первого экрана. Проект начинался с того, что
+ * работы не видно.
+ *
+ * Ставим их в одну линию: инфо-доска слева, задачи сразу справа от неё.
+ * 304 — ширина одноколоночной доски; ровно это значение стоит в тех
+ * пространствах, где раскладка уже правильная (сверено с живыми досками).
+ */
+const INFO_BOARD_WIDTH = 304;
+
+async function placeBoardsInRow(left, right) {
+  try {
+    await Promise.all([
+      api.patch(`/api/v1/boards/${left.id}`, { top: 0, left: 0 }),
+      api.patch(`/api/v1/boards/${right.id}`, { top: 0, left: INFO_BOARD_WIDTH }),
+    ]);
+  } catch (e) { /* доски созданы; кривая раскладка не повод рушить создание проекта */ }
+}
+
 // Переименовываем колонки доски задач под нужную структуру
 async function setupTasksBoard(boardId) {
   const COLUMNS = [
@@ -169,9 +192,10 @@ async function init() {
       });
 
       msg('Создаю доски…');
-      await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
+      const infoBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Ключевое о проекте' });
       const tasksBoard = await api.post(`/api/v1/spaces/${space.id}/boards`, { title: 'Задачи проекта' });
       await setupTasksBoard(tasksBoard.id);
+      await placeBoardsInRow(infoBoard, tasksBoard);
 
       msg('Добавляю в портфель…');
       const cardBody = {
